@@ -1,8 +1,16 @@
-# fedora-audiophile-setup
+# fedora-rpi-audiophile-setup
 
-Turn a clean **Fedora 43 or 44 minimal** install into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
+Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
 
-> **Status: 1.0.** All modules implemented and tested on Fedora 43 and 44 (x86_64). Production-ready for the supported scope.
+> **Status: WORK IN PROGRESS — early bootstrap.**
+> This repo is the **ARM64 sibling** of [`fedora-audiophile-setup`](https://github.com/cometdom/fedora-audiophile-setup) (the x86_64 wizard, production at v1.5.0). The codebase is forked from the x86_64 wizard's `main` at `49114a9` and will be adapted module by module so the same workflow runs on a Raspberry Pi 5 host. Until that adaptation is complete you should expect rough edges — the x86_64 repo's `00-preflight` rejects non-x86_64 architectures, the `02-system-tuning` tuner has Intel/AMD vendor checks, and several optimisations are Intel-specific (`intel_pstate/no_turbo`, `intel_pstate/max_perf_pct`). All of those need ARM-aware equivalents or graceful skips.
+>
+> **What already works on this exact stack** (confirmed 2026-06-05 by an early tester on a Raspberry Pi 5 running Fedora 44 ARM64 with the `@kernel-vanilla/stable` COPR's aarch64 PREEMPT_RT kernel `7.0.11-301.vanilla.fc44.aarch64+rt`):
+> - DRUP installed and running, ping latency ~50 µs over `eth-diretta` at MTU 9014
+> - `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0` for 4-core isolation (one system core, three audio cores)
+> - DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages
+>
+> **Track the x86_64 repo for the canonical design**; the docs and per-module rationale there apply almost verbatim to ARM64 — only the mechanism (Intel-specific syscalls, package names, etc.) needs porting.
 
 ## What it does
 
@@ -24,23 +32,22 @@ After a single reboot, your audio host is fully tuned and ready.
 
 ## Requirements
 
-- **Fedora 43 or 44** (Server or Workstation, minimal install — see [the install guide](docs/en/fedora-43-minimal-install.md)). Fedora 44 is what `fedoraproject.org` promotes right now; Fedora 43 is still supported until ~end of 2026.
-- **Secure Boot disabled** in BIOS (the vanilla kernels can't be signed)
+- **Fedora 44 Server (ARM64)** on a **Raspberry Pi 5** (4 GB or 8 GB). The Pi 5 is the recommended target — its 4-core Cortex-A76 leaves enough headroom for one system core plus three isolated audio cores (`isolcpus=1-3`). The Pi 4 may work but is not yet a target of this wizard.
 - Root access
 - Internet connection (to fetch the kernel COPR and dependencies)
 - A handful of host packages installed before running the wizard:
 
   ```bash
-  sudo dnf -y install git curl mokutil grubby dnf-plugins-core tar
+  sudo dnf -y install git curl grubby dnf-plugins-core tar
   ```
 
-  `git` lets you clone this repo; `tar` extracts the Diretta SDK archive (no longer bundled in the Fedora 44 custom base); the others are used by the wizard itself (`curl` to fetch upstream scripts, `mokutil` to verify Secure Boot is off, `grubby` to set the kernel-rt as the default boot entry, `dnf-plugins-core` for `dnf copr enable`). All are tiny and idempotent — `dnf` will skip what's already present.
+  `git` lets you clone this repo; `tar` extracts the Diretta SDK archive (no longer bundled in the Fedora 44 custom base); the others are used by the wizard itself (`curl` to fetch upstream scripts, `grubby` to set the kernel-rt as the default boot entry, `dnf-plugins-core` for `dnf copr enable`). Note: unlike the x86_64 wizard, no `mokutil` and no Secure Boot precondition — Secure Boot is not exposed by Raspberry Pi firmware.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/cometdom/fedora-audiophile-setup.git
-cd fedora-audiophile-setup
+git clone https://github.com/cometdom/fedora-rpi-audiophile-setup.git
+cd fedora-rpi-audiophile-setup
 sudo ./setup.sh
 ```
 
@@ -84,19 +91,21 @@ sudo ./setup.sh --only kernel-rt
 
 ### Released
 
-- [x] **v1.0** — Working wizard with all modules, interactive menu, Fedora 43/44 support, EN docs + French newbie walkthrough, PDF generation
-- [x] **v1.1** — Kernel selection hardening: vanilla `@kernel-vanilla/stable` PREEMPT_RT kernel only (CachyOS-RT dropped after no-boot reports), RPM `vmlinuz` content verification and `CONFIG_PREEMPT_RT` check before switching the default GRUB entry
-- [x] **v1.2** — Universal Diretta MTU persistence via a systemd-udevd `.link` drop-in — works under **both** NetworkManager and systemd-networkd
-- [x] **v1.3** — `diretta-net-toggle` companion tool: temporarily bridge LAN + Diretta NICs so the target is reachable from the LAN (firmware checks, etc.) without recabling, then switch back for listening
-- [x] **v1.4** — Module 06 gains an opt-in CPU max-frequency cap (`/etc/default/audiophile-cpu-states`, re-tunable without re-running the wizard) and always-on memory/MM jitter reducers (THP, KSM, NUMA balancing); walkthrough recommends BIOS-side CPU Boost off + OS→BIOS consolidation path for the max-freq cap
-- [x] **v1.5** — Stable interface naming by MAC (opt-in, default Y): NICs renamed to `eth-lan` / `eth-diretta` via udev `.link` drop-ins, surviving NIC swap, added PCIe card, and GPU insert/remove. Single canonical Diretta `.link` carrying rename + MTU + offload-off (gso/tso/gro/lro). `diretta-net-toggle` hardened with cache validation, actionable error messages when networkd is inactive, and a new `purge` subcommand for recovery from NetworkManager. Menu shows the module-file prefix (`NN`) next to each name
+**Forked from** `fedora-audiophile-setup` at commit `49114a9` (post-v1.5.0). All historical x86_64 releases above that point are inherited in the git history of this repo. New tagged releases here will use ARM-specific version numbers (the first one will be `v0.1` — bootstrap).
 
-### Planned
+### Inherited from fedora-audiophile-setup (x86_64)
 
-- [ ] **v1.6+** — Spanish translation; finish translating the remaining guides to French
-- [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
-- [ ] Optional config-file mode for unattended provisioning
-- [ ] _separate sibling repo_ — Raspberry Pi 5 audiophile setup on **Fedora 44 ARM64** (vanilla PREEMPT_RT from the `@kernel-vanilla/stable` COPR — aarch64 builds confirmed working; 4-core isolation `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0`; DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages)
+- [x] v1.0 → v1.5 — entire feature set of the x86_64 wizard, see the [upstream Roadmap](https://github.com/cometdom/fedora-audiophile-setup#roadmap)
+
+### ARM-specific work to land
+
+- [ ] **`00-preflight`** — replace the `[[ "$arch" == "x86_64" ]]` hard-fail with an `aarch64` allow path; drop Secure Boot check (no equivalent on RPi firmware); keep IPv6 and Fedora 44 checks
+- [ ] **`02-system-tuning`** — handle the Intel/AMD vendor checks in `diretta-renderer-tuner.sh` gracefully on aarch64 (skip vs. ARM-aware path); default to a 4-core `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0` template for the Pi 5
+- [ ] **`06-cpu-states`** — `intel_pstate` knobs (`no_turbo`, `max_perf_pct`) are no-ops on ARM; rework module 06 to detect ARM and use `cpufreq` governor + per-core `scaling_max_freq` instead. Memory/MM jitter reducers (THP, KSM, NUMA balancing) are arch-agnostic and stay as-is
+- [ ] **`10-install-drup`** — pass `ARCH_NAME=aarch64-linux-15k16` to DRUP's `install.sh` on the Pi 5 (16 KiB pages); use `aarch64-linux-15` if Pi 4 support is added later. NEON SIMD path is auto-detected by DRUP, no flag needed
+- [ ] **`11-install-slim2diretta`** — same ARM build target nuance as module 10
+- [ ] **Newbie walkthrough** — add a Pi-specific bootstrap section (writing Fedora 44 Server ARM64 to the SD card / NVMe, first boot, SSH-from-LAN setup) before §11 "Run the wizard"
+- [ ] **First `v0.1` tag** — once preflight + system-tuning + DRUP install run cleanly on a vanilla Fedora 44 ARM64 Pi 5 image, with no manual patches
 
 ## License
 
