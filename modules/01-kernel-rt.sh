@@ -39,13 +39,26 @@ _kernel_check_internet() {
     exit 1
 }
 
-# Print the kernel-rt /boot vmlinuz (newest), or empty. Derived from RPM, not
-# the file name: vmlinuz is /boot/vmlinuz-<VERSION>-<RELEASE>.<ARCH> and
-# kernel-rt-core carries exactly that V-R-arch.
+# Print the kernel-rt /boot vmlinuz (newest), or empty. We ask the RPM which
+# file it actually installed (rpm -ql) instead of reconstructing the name from
+# V-R-A: the vanilla RT kernel's vmlinuz carries a localversion suffix that the
+# RPM N-V-R-A does NOT — e.g. RPM 7.0.12-301.vanilla.fc44.aarch64 but file
+# /boot/vmlinuz-7.0.12-301.vanilla.fc44.aarch64+rt. The reconstructed path
+# wouldn't exist, so the RT kernel was never set as default (seen on a Pi 5).
 _kernel_find_vmlinuz() {
-    local kver v
-    kver=$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' "$_KR_CORE_PKG" 2>/dev/null \
-        | sort -V | tail -1 || true)
+    local nvra v kver
+    nvra=$(rpm -q "$_KR_CORE_PKG" 2>/dev/null | sort -V | tail -1 || true)
+    [[ -n "$nvra" ]] || return 0
+    # Prefer the /boot/vmlinuz the package owns.
+    v=$(rpm -ql "$nvra" 2>/dev/null | grep -m1 '^/boot/vmlinuz-' || true)
+    if [[ -n "$v" && -f "$v" ]]; then
+        echo "$v"
+        return 0
+    fi
+    # Fallback: derive the real kernel version (incl. the +rt localversion)
+    # from the /lib/modules/<kver> directory the package owns, then the
+    # conventional /boot path.
+    kver=$(rpm -ql "$nvra" 2>/dev/null | sed -n 's#^/lib/modules/\([^/]*\)/.*#\1#p' | sort -u | tail -1)
     [[ -n "$kver" ]] || return 0
     v="/boot/vmlinuz-${kver}"
     [[ -f "$v" ]] && echo "$v"
