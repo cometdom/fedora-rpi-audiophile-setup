@@ -15,8 +15,14 @@
 #      additionally prompts for MTU and writes it via nmcli (NM-only); that
 #      duplicate prompt is harmless — the .link is what reliably applies.
 #   5. git clone DRUP into $HOME/DirettaRendererUPnP (as $SUDO_USER)
-#   6. Run ./install.sh as $SUDO_USER in a real TTY (~30 min for FFmpeg
-#      build); skipped if the binary already exists.
+#   6. Run ./install.sh --full as $SUDO_USER in a real TTY (~30 min for the
+#      FFmpeg build); skipped if the binary already exists. --full calls
+#      run_full_installation directly, bypassing DRUP's interactive menu so
+#      its destructive "Aggressive Fedora optimization" entry (menu option 7
+#      — removes firewalld/SELinux/polkit/journald, swaps sshd→dropbear,
+#      reboots, and has wiped a tester's RT kernel) is unreachable. The
+#      FFmpeg-version sub-prompt still appears; on the Pi 5 the default
+#      (8.0.1) is reported to fail, so we steer the user to 7.1.
 #   7. Run systemd/install-systemd.sh as root (copies binary, conf, service)
 #   8. Post-process /etc/default/diretta-renderer: set INTERFACE,
 #      TARGET_INTERFACE, TARGET
@@ -219,8 +225,13 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
         log_info "Will pass LLVM=1 to ./install.sh."
     fi
 
-    log_warn "About to run DRUP ./install.sh as user '${_drup_user}'."
-    log_warn "It compiles FFmpeg from source — expect ~30 minutes. Answer its prompts."
+    log_warn "About to run DRUP ./install.sh --full as user '${_drup_user}'."
+    log_warn "It compiles FFmpeg from source — expect ~30 minutes."
+    # Pi 5 guidance (tester Dave, 2026-06-09): install.sh's FFmpeg-version
+    # sub-prompt defaults to option 3 (8.0.1), which is reported to fail on
+    # the Pi 5; option 2 (7.1) builds and runs. Steer the user to 7.1.
+    log_warn "When it asks which FFmpeg to build, choose '2) FFmpeg 7.1'."
+    log_warn "  (The default '3) 8.0.1' is reported to fail on the Raspberry Pi 5.)"
     # Known upstream bug: install.sh's "Configure firewall to allow UPnP
     # traffic?" step calls firewall-cmd unconditionally and aborts on rc!=0
     # when firewalld is inactive. Warn the user up front so they answer N.
@@ -230,15 +241,16 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
         log_warn "Answering Y aborts install.sh (upstream bug)."
     fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_llvm_prefix}./install.sh"
+        log_info "DRY-RUN: would execute as ${_drup_user}: cd ${_drup_dir} && ${_drup_llvm_prefix}./install.sh --full"
     else
         # Direct exec (no run_cmd / tee pipe) so install.sh keeps its TTY.
-        # -i = login shell so PATH/HOME are clean for the user. Temporarily
-        # disable set -e so an install.sh hiccup at the firewall step (or
-        # similar) doesn't kill our wizard — we judge success by whether
-        # the binary was produced.
+        # -i = login shell so PATH/HOME are clean for the user. --full runs
+        # run_full_installation directly (no menu → the aggressive-optimization
+        # entry is unreachable). Temporarily disable set -e so an install.sh
+        # hiccup at the firewall step (or similar) doesn't kill our wizard —
+        # we judge success by whether the binary was produced.
         set +e
-        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_llvm_prefix}./install.sh"
+        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ${_drup_llvm_prefix}./install.sh --full"
         _drup_rc=$?
         set -e
         if [[ ! -f "$_drup_binary" ]]; then
