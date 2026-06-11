@@ -1,20 +1,22 @@
-# Newbie Walkthrough — Fedora 43/44 + audiophile setup, from zero
+# Newbie Walkthrough — Fedora 44 (ARM64) on a Raspberry Pi 5, from zero
 
-This guide takes you from an empty PC to a fully tuned audiophile playback host running [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta). No prior Linux experience required — every step has the exact command you need to type.
+This guide takes you from a bare Raspberry Pi 5 to a fully tuned audiophile playback host running [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta). No prior Linux experience required — every step has the exact command you need to type.
 
 **Time required:** about 2–3 hours total. Most of it is the kernel + FFmpeg + DRUP compilation, which runs unattended.
 
-**What you'll have at the end:** a headless PC or mini-PC dedicated to audio playback, with a real-time kernel, isolated CPU cores, jumbo Ethernet to your Diretta DAC, and an audio renderer (UPnP and/or LMS) that just appears on your network for your control point to drive.
+**What you'll have at the end:** a headless Raspberry Pi 5 dedicated to audio playback, with a real-time kernel, isolated CPU cores, jumbo Ethernet to your Diretta DAC, and an audio renderer (UPnP and/or LMS) that just appears on your network for your control point to drive.
+
+> **x86 PC instead of a Pi?** This guide and wizard are for the Raspberry Pi 5 on Fedora 44 (ARM64). If you're on an Intel/AMD PC, use the x86_64 sibling project: [fedora-audiophile-setup](https://github.com/cometdom/fedora-audiophile-setup).
 
 ## Table of contents
 
 - [Before you start: prerequisites checklist](#before-you-start-prerequisites-checklist)
-- **Part A — at the machine (screen, keyboard, mouse)**
+- **Part A — at the machine (screen, keyboard)**
   - [1. Pick the right hardware](#1-pick-the-right-hardware)
-  - [2. BIOS settings before booting the installer](#2-bios-settings-before-booting-the-installer)
-  - [3. Download the Fedora ISO](#3-download-the-fedora-iso)
-  - [4. Create the bootable USB stick](#4-create-the-bootable-usb-stick)
-  - [5. Install Fedora minimal](#5-install-fedora-minimal)
+  - [2. A word on Pi firmware (no BIOS)](#2-a-word-on-pi-firmware-no-bios)
+  - [3. Download the Fedora image](#3-download-the-fedora-image)
+  - [4. Write Fedora to the SD card](#4-write-fedora-to-the-sd-card)
+  - [5. First boot and initial setup](#5-first-boot-and-initial-setup)
   - [6. Note the IP address](#6-note-the-ip-address)
 - **Part B — from your couch (SSH)**
   - [7. Connect via SSH](#7-connect-via-ssh)
@@ -37,155 +39,111 @@ This guide takes you from an empty PC to a fully tuned audiophile playback host 
 
 You need:
 
-- A **PC or mini-PC** (Intel NUC, small AMD box, etc.) — x86_64, at least 8 GB RAM (16–32 GB recommended) and 30 GB free disk. ARM is not supported by this wizard.
-- A **second computer** (your main laptop/desktop) to prepare the USB stick and connect via SSH later.
-- A **USB stick**, at least 8 GB. Its contents will be wiped.
-- An **Ethernet cable** plugged into your home network — Wi-Fi is not recommended for sustained audio streaming.
-- (Optional but recommended for the best Diretta link) **A second NIC** dedicated to the Diretta link — a USB-Ethernet adapter with the **Realtek RTL8156** chipset is the reference choice and is the only way to push MTU up to 16128 (next best is jumbo 9014, which any modern NIC handles).
-- A **Diretta target / DAC** on your audio network (this is what the audio PC will stream to).
-- The IP address or admin access to your **home router** (to look up the IP of the audio PC later).
+- A **Raspberry Pi 5** (4 GB, 8 GB, or 16 GB). 8 GB is a comfortable target. The Pi 4 is not a target of this wizard.
+- The **official 27 W USB-C power supply** (the Pi 5 is fussy about power — an underpowered supply causes random instability) and an **active cooler / fan**. Cooling is not optional here: the wizard pins the CPU governor to *performance*, so the Pi runs hot and will throttle without active cooling.
+- A **microSD card** (A2-rated, ≥ 16 GB) — or, better, an **NVMe SSD on an M.2 HAT**. This is where Fedora lives; your music does not (it streams from your LMS/Roon/Minimserver or from Qobuz/Tidal).
+- A **second computer** (your main laptop/desktop) to write the SD card and connect via SSH later.
+- A **screen + keyboard** (micro-HDMI cable for the Pi 5) for the one-time first-boot setup. You can unplug them after [§6](#6-note-the-ip-address).
+- An **Ethernet cable** to your home network — Wi-Fi is not recommended for sustained audio streaming. The Pi 5 has one gigabit NIC onboard (your LAN side).
+- (Optional but recommended for the best Diretta link) **A second NIC** for the point-to-point Diretta link — a **USB-Ethernet adapter with the Realtek RTL8156 chipset** is the reference choice and the only way to push MTU up to 16128 (next best is jumbo 9014, which the onboard NIC handles). Plug it into one of the Pi 5's **USB 3.0** ports (the blue ones).
+- A **Diretta target / DAC** on your audio network (this is what the Pi will stream to).
+- The IP address or admin access to your **home router** (to look up the Pi's IP later).
 - **About 1 hour of patience** during the FFmpeg + DRUP build step in [§13](#13-answer-the-per-module-prompts).
 
 ---
 
 # Part A — at the machine
 
-You'll need screen, keyboard, and mouse plugged into the audio PC for this part. After [§6](#6-note-the-ip-address), you can unplug them and finish remotely.
+You'll need a screen and keyboard plugged into the Pi for this part (a micro-HDMI cable for the Pi 5's HDMI port). After [§6](#6-note-the-ip-address), you can unplug them and finish everything remotely over SSH.
 
 ## 1. Pick the right hardware
 
 A typical setup:
 
-- **Audio PC**: small fanless mini-PC. Intel NUC, ASRock DeskMini, Beelink, Minisforum — any modern x86_64 box with at least 4 cores. **8 GB RAM is the bare minimum; 16–32 GB is recommended** (the wizard runs comfortably in 8 GB but headroom helps the kernel page-cache the music stream and keeps any background dnf/update from spilling to disk during playback).
-- **Storage**: an internal SSD is plenty — 60–120 GB is more than enough. Music files don't live here; they live on your LMS/Minimserver/Roon server or stream from Qobuz/Tidal...
-- **Two NICs (optional but ideal)**: one for your LAN (control points, internet), one for a direct point-to-point link to the Diretta target. For the Diretta link, a **USB-Ethernet adapter with the Realtek RTL8156 chipset** is the reference choice — it's also the only NIC family that supports MTU **16128** (other modern NICs top out at jumbo 9014, which is fine for most setups). Plug it into a **USB 3.0** port (the blue one, or marked "SS"), not USB 2.0. If you have a free PCIe slot in your PC, you can plug in a PCIe NIC with a PCIe NIC with **the realtek RTL8156 chipset**.
+- **Audio host**: a **Raspberry Pi 5**. Its 4-core Cortex-A76 is enough to run one system core plus three isolated audio cores (`isolcpus=1-3`). **4 GB RAM is fine**; 8 GB gives extra headroom for the kernel to page-cache the stream. Use the **official 27 W USB-C PSU** and an **active cooler** — the wizard pins the governor to *performance*, so passive cooling will throttle.
+- **Storage**: a good **A2 microSD** (≥ 16 GB) works; an **NVMe SSD on an M.2 HAT** is faster and more reliable for the OS. Music files don't live here — they stream from your LMS/Minimserver/Roon server or from Qobuz/Tidal…
+- **Two NICs (optional but ideal)**: the Pi 5's **onboard gigabit NIC** for your LAN (control points, internet), plus a **USB-Ethernet adapter** for a direct point-to-point link to the Diretta target. For that link, an adapter with the **Realtek RTL8156 chipset** is the reference choice — it's the only family that supports MTU **16128** (the onboard NIC tops out at jumbo 9014, which is fine for most setups). Plug it into one of the Pi 5's **USB 3.0** ports (the blue ones), not USB 2.0.
 
 Single-NIC setups also work — the wizard handles that case automatically.
 
-## 2. BIOS settings before booting the installer
+## 2. A word on Pi firmware (no BIOS)
 
-These choices matter, and some of them can't be changed once the OS is installed. Enter your BIOS / UEFI setup (usually by pressing **F2**, **F12**, **Del**, or **Esc** right after power-on).
+Good news: the Raspberry Pi has **no BIOS** to configure, and **no Secure Boot** to disable — so none of the usual x86 pre-install fiddling applies. On an x86 box you'd disable C-states, SpeedStep, and Turbo Boost in the BIOS; on the Pi there is no such knob, and there's nothing to do here. The wizard pins the CPU to *performance* and disables deep idle states at the OS level (module 06), which is all that's needed.
 
+A current Pi 5 ships with recent enough boot firmware to run Fedora; if your Pi has been sitting on a shelf, you can update the EEPROM later from Fedora (`sudo fwupdmgr update`) — not required for this guide.
 
-- **Secure Boot: OFF** — required. The real-time kernel this wizard installs cannot be signed, so Secure Boot would prevent it from booting.
-- **CPU C-states: OFF** (or "C0/C1 only") — prevents the CPU from entering deep sleep that adds latency.
-- **CPU SpeedStep / Cool'n'Quiet / P-states: OFF** — keep the CPU at max frequency.
-- **CPU Boost (Intel Turbo Boost / AMD Core Performance Boost, named per your BIOS): OFF** — recommended. Module 06 also pins it off at the OS level, but disabling it in the BIOS is more deterministic: the CPU never boosts, not even briefly between power-on and the systemd service starting.
-- **Hyper-Threading / SMT: ON** — leave it on; the wizard can disable it at runtime if you want.
-- **Virtualization (VT-x / AMD-V): OFF** — not needed for playback.
-- **Motherboard audio chip: DISABLED** if you never use it (audio leaves over the network, not via local DAC).
-- **Wake-on-LAN, IPMI, server management: OFF** unless you need them.
+> **Going further (optional, after first listening).** Module 06 lets you cap the CPU max frequency from the OS (`/etc/default/audiophile-cpu-states`, `CPU_MAX_PCT=…`) — easy to iterate, restart-and-listen. Lower peak frequency draws less current and runs cooler, which some listeners prefer. The Pi 5 can also be tuned (or overclocked) via `/boot/config.txt`-style firmware settings, but that's out of scope here and not needed for a good result.
 
-Save, exit, and let the machine reboot.
+## 3. Download the Fedora image
 
-> **Going further (optional, after first listening).** Module 06 lets you cap the CPU max frequency from the OS (`/etc/default/audiophile-cpu-states`, `CPU_MAX_PCT=…`) — easy to iterate, restart-and-listen. Once you've found a value you like, you can **consolidate it in the BIOS** via the CPU multiplier / ratio, or via the power limits (`PL1`/`PL2` on Intel, `PPT`/`EDC`/`TDC` on AMD). A BIOS-level limit is strictly more deterministic (the CPU physically can't exceed it, even briefly at boot) and removes the dependency on the runtime service. The OS-level cap stays as a safe playground for further experimentation. Undervolt (`Vcore` offset) is the next step but it's hardware-specific and carries instability risk — proceed only if you're comfortable with it.
-
-## 3. Download the Fedora ISO
-
-On your **main computer** (not the audio PC):
+On your **main computer** (not the Pi). Unlike an x86 install, you don't use an ISO/installer — you write a ready-made **disk image** straight to the SD card.
 
 1. Open https://fedoraproject.org/server/download in your browser.
-2. Pick **Network Install** (netinst) for **x86_64**.
-3. Save the file. The name looks like `Fedora-Server-netinst-x86_64-44-*.iso` (or `-43-` if you deliberately pick Fedora 43 — the wizard supports both).
+2. Choose the **aarch64** architecture and download the **Raw Image** (a `.raw.xz` file), not the ISO. The name looks like `Fedora-Server-44-*.aarch64.raw.xz`.
+3. Save it on your main computer.
 
-> Why netinst and not the Live image? The Live image installs a bunch of software you'd just remove afterwards. Netinst lets you start from a truly minimal base.
+> **Server or Minimal?** Either Fedora 44 aarch64 edition works — the wizard only checks that you're on Fedora **44**. The Server raw image is the recommended, best-documented choice; the lighter "Minimal" aarch64 image is what our early Pi 5 tester used successfully.
 
-## 4. Create the bootable USB stick
+## 4. Write Fedora to the SD card
 
-The easiest cross-platform tool is **balenaEtcher**.
+Use **Raspberry Pi Imager** (https://www.raspberrypi.com/software/) or **balenaEtcher** (https://etcher.balena.io). Both write the compressed `.raw.xz` directly — no need to decompress it first.
 
-1. Download balenaEtcher from https://etcher.balena.io and install it on your main computer.
-2. Plug your USB stick into your main computer.
-3. Launch balenaEtcher.
-4. Click **Flash from file** → select the Fedora ISO you just downloaded.
-5. Click **Select target** → choose your USB stick. **Triple-check this** — it will erase whatever you point at.
-6. Click **Flash!** and wait for the operation to finish and verify.
+Insert the microSD card (via a card reader) into your main computer, then:
 
-![balenaEtcher — Flash from file, Select target, Flash](../images/en/01-balena-etcher.jpg)
+**With Raspberry Pi Imager:**
+1. Click **Choose OS** → scroll to the bottom → **Use custom**, and pick the `Fedora-Server-44-*.aarch64.raw.xz` you downloaded.
+2. Click **Choose Storage** → select your SD card. **Triple-check this** — it erases whatever you point at.
+3. Click **Next**. If it offers "OS customisation", choose **No / Edit settings → nothing** — that feature only applies to Raspberry Pi OS, not Fedora; we do the setup on first boot instead.
+4. Confirm and wait for it to write and verify.
 
-Eject the USB stick cleanly when done.
+**With balenaEtcher:** **Flash from file** → the `.raw.xz` → **Select target** → your SD card → **Flash!**
 
-## 5. Install Fedora minimal
+![Writing the image — Flash from file, Select target, Flash](../images/en/01-balena-etcher.jpg)
 
-Plug the USB stick into the audio PC, plus screen, keyboard, mouse, and the Ethernet cable to your LAN.
+Eject the card cleanly, then insert it into the Pi (card slot is on the underside).
 
-1. Power the audio PC on and immediately press the **boot-menu** key (often **F12**, **F11**, or **Esc** depending on the manufacturer).
-2. Pick the USB stick from the boot menu. The Fedora installer (called Anaconda) starts.
-3. After a few seconds, the **Welcome to Fedora** screen appears. Click **Install Fedora**.
+## 5. First boot and initial setup
 
-![Anaconda welcome screen — Install Fedora](../images/en/02-anaconda-welcome.jpg)
+There's no installer to click through — the image you wrote is already a full Fedora system. On first boot it runs a one-time **text setup** on the screen.
 
-### 5.1 Language and keyboard
+1. Insert the SD card, connect the screen (micro-HDMI) and keyboard, plug the **Ethernet cable** into your LAN, then connect power. The Pi boots.
+2. After a minute it shows a text menu titled something like **"Initial setup of Fedora"**, with numbered entries you complete one by one — type the number, press Enter, fill it in, then return to the menu.
 
-Pick your language (e.g. English (United States)) and keyboard layout. Click **Done**.
+Complete these entries:
 
-![Anaconda language and keyboard selection](../images/en/03-anaconda-language.jpg)
+- **Language / keyboard** — pick yours.
+- **Time settings** — set your timezone.
+- **Root password** — set a strong one. You won't use it often, but you'll want it for emergencies.
+- **User creation** — create your everyday account:
+  - User name: short and lowercase, e.g. `dommusic`.
+  - Set a password.
+  - Choose **make this user administrator** (this puts the user in the `wheel` group so it can `sudo`).
 
-You now see the **Installation Summary** — the hub from which you configure each section. You'll come back to this screen between every step below.
+When every entry shows as done, choose **`c`** (continue) / **Done** to finish. The Pi completes setup and drops to a **login prompt**. Log in with the **user** account you just created (not root).
 
-![Anaconda Installation Summary hub](../images/en/04-anaconda-summary.jpg)
+Networking needs no setup: the wired NIC picks up an address from your router automatically.
 
-### 5.2 Installation destination
+### 5.5 Grow the root filesystem
 
-Click **Installation Destination**.
+The image is sized for the smallest card, so the root partition probably doesn't yet fill your SD/NVMe. First check:
 
-- Select the internal SSD (NOT the USB stick — the USB is the installer source).
-- Storage configuration: **Automatic**.
-- Click **Done**. If prompted to confirm, accept.
+```bash
+df -h /
+```
 
-![Anaconda Installation Destination — internal SSD, Automatic partitioning](../images/en/05-anaconda-destination.jpg)
+If `/` already shows most of your card's capacity, skip ahead. Otherwise grow it — the SD card is `/dev/mmcblk0` and root is its 3rd partition (`mmcblk0p3`); on an NVMe drive it's `/dev/nvme0n1` and `nvme0n1p3`:
 
-### 5.3 Software selection — CRITICAL
+```bash
+sudo parted /dev/mmcblk0
+# at the (parted) prompt:
+unit GB
+print                 # note that partition 3 is the Linux root
+resizepart 3 100%     # answer Yes if it warns the partition is in use
+quit
 
-Click **Software Selection**.
-
-- Base environment: **Fedora Custom Operating System** (this is the most important step in the whole installer — anything else installs software we'd remove later).
-- **Do NOT** tick any add-on group on the right.
-- Click **Done**.
-
-![Anaconda Software Selection — Fedora Custom Operating System, no add-ons](../images/en/06-anaconda-software.jpg)
-
-### 5.4 Network and hostname
-
-Click **Network & Host Name**.
-
-- Toggle the Ethernet interface to **ON** (it should pick up DHCP from your router).
-- Set the hostname to something memorable, e.g. `audio-pc` or `diretta-renderer`.
-- Click **Done**.
-
-![Anaconda Network and Host Name screen](../images/en/07-anaconda-network.jpg)
-
-### 5.5 Root password
-
-Click **Root Password**.
-
-- Tick Enable root account
-- Set a strong root password. You won't use it often, but you'll need it for emergencies.
-- Tick **Allow root SSH login with password** so you can rescue the box remotely if needed.
-- Click **Done**.
-
-![Anaconda Root Password screen](../images/en/08-anaconda-rootpw.jpg)
-
-### 5.6 User account
-
-Click **User Creation**.
-
-- Full name: anything.
-- User name: short and lowercase, e.g. `dommusic`. This is the account you'll use day to day.
-- Tick **Make this user administrator** (this puts the user in the `wheel` group and lets them `sudo`).
-- Set a password. Click **Done**.
-
-![Anaconda User Creation screen — make this user administrator](../images/en/09-anaconda-user.jpg)
-
-### 5.7 Begin install + reboot
-
-Back on the Installation Summary, click **Begin Installation**.
-
-The installer downloads and writes packages — this takes 5–15 minutes depending on your network. When it's done, click **Reboot System**.
-
-**Pull the USB stick out** while the machine reboots so it doesn't boot the installer again.
-
-After reboot, the machine shows a login prompt. Log in with the **user** account you created (not root).
+sudo resize2fs /dev/mmcblk0p3
+df -h /                # confirm / is now full-size
+```
 
 ## 6. Note the IP address
 
@@ -195,15 +153,15 @@ In the terminal:
 ip addr show
 ```
 
-Look for a line like `inet 192.168.1.104/24` under your Ethernet interface (e.g. `enp5s0`). Write that address down — you'll SSH to it next.
+Look for a line like `inet 192.168.1.104/24` under your wired interface (on the Pi 5 the onboard NIC is usually `end0`). Write that address down — you'll SSH to it next. (You can also find it in your router's DHCP client list.)
 
-Then make sure SSH is running on the audio PC. While you still have a session on the audio PC (logged in locally), run:
+Fedora Server already has SSH enabled, so you can likely connect right away. To be sure — while you still have the local session — run:
 
 ```bash
-sudo dnf install -y openssh-server
 sudo systemctl enable --now sshd
 ```
-You can now unplug the screen, keyboard, and mouse from the audio PC. Move to your main computer.
+
+You can now unplug the screen and keyboard from the Pi. Move to your main computer.
 
 ---
 
@@ -229,11 +187,12 @@ A minimal Fedora install ships almost nothing. Update the system and install the
 
 ```bash
 sudo dnf -y update
-sudo dnf -y install git curl mokutil grubby dnf-plugins-core tar
+sudo dnf -y install git curl grubby dnf-plugins-core tar
 ```
 
 - `git` is needed to clone the wizard repo (and DRUP, slim2Diretta).
 - The others are used by the wizard itself; if you forget any, `00-preflight` will install them as a safety net.
+- (No `mokutil` here, unlike the x86 guide — the Pi has no Secure Boot.)
 
 ## 9. Download the Diretta SDK
 
@@ -272,8 +231,8 @@ Still in the SSH session:
 
 ```bash
 cd ~
-git clone https://github.com/cometdom/fedora-audiophile-setup.git
-cd fedora-audiophile-setup
+git clone https://github.com/cometdom/fedora-rpi-audiophile-setup.git
+cd fedora-rpi-audiophile-setup
 sudo ./setup.sh
 ```
 
@@ -306,7 +265,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 
 | Module | Prompt | Recommended answer |
 |---|---|---|
-| 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Enter) — keep Hyper-Threading on; the OS still pins audio threads correctly. |
+| 02 system-tuning | `Use the -nosmt tuner variant?` | **N** (Enter) — the Pi 5's Cortex-A76 has no SMT/Hyper-Threading anyway, so `-nosmt` only adds a no-op flag; the regular tuner isolates the audio cores the same way. |
 | 03 network-stack | `Set up stable names by MAC?` | **Y** (Enter) — renames your NICs to `eth-lan` and `eth-diretta` based on their MAC addresses. Future-proofs the host against any hardware change that would shift PCI enumeration (NIC swap, added PCIe card, GPU insert/remove on a host without an integrated GPU). If you decline, the wizard keeps the kernel-assigned `enpXsY` names and any later swap may require manual config edits. Takes effect at next boot. |
 | 03 network-stack | `Use these roles?` (auto-detected LAN/Diretta) | **Y** (Enter) if the displayed mapping looks right. The wizard pre-selects LAN = NIC with default route, Diretta = the other one (when you have exactly two Ethernet cards). Answer **N** to pick roles manually from a menu. |
 | 03 network-stack | `K) Keep NetworkManager / S) Switch to systemd-networkd / N) Skip` | **K** (Enter) — keeping NetworkManager is safer for first-time setups. |
@@ -317,6 +276,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 10 install-drup | `Install DirettaRendererUPnP?` | **Y** if you want UPnP / Audirvana / Roon / mConnect. Otherwise **n**. |
 | 10 install-drup | NIC selection | Pick the NIC connected to your Diretta target. The other (with an IP) is your LAN side. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Enter) — better audio quality, slightly longer build. |
+| 10 install-drup | DRUP `install.sh`'s **FFmpeg version** menu | **2 = FFmpeg 7.1** on the Pi 5. The default (`3 = 8.0.1`) is reported to fail to build on the Pi; 7.1 builds and runs. (The wizard prints this reminder just before launching the installer.) |
 | 10 install-drup | DRUP's own `Configure firewall?` prompt | **N** — you disabled firewalld at step 05. Answering Y here would abort the script. |
 | 10 / 11 | `MTU for the Diretta NIC` (asked by the wizard) | **2 = 9014** (jumbo, default) on most NICs; **3 = 16128** only with a Realtek RTL8156 NIC AND a target that supports it; **1 = 1500** otherwise. |
 | 10 install-drup | DRUP `install.sh`'s own MTU prompt (later) | Give the **same** answer as above. It's a harmless duplicate (nmcli-based); the wizard's `.link` drop-in is what reliably applies, including under systemd-networkd. |
@@ -465,31 +425,34 @@ For when you want to redo the whole thing from memory:
 
 ```bash
 # === Part A: at the machine ===
-# (Install Fedora 43 or 44 Server netinst, minimal install — see §5.)
+# Write Fedora 44 aarch64 (Server .raw.xz) to the SD card, boot the Pi,
+# do the text first-boot setup, then grow the root filesystem — see §3–§5:
+#   df -h /
+#   sudo parted /dev/mmcblk0      # then: resizepart 3 100%
+#   sudo resize2fs /dev/mmcblk0p3
 
 # === Part B: SSH from your main computer ===
 
-# On the audio PC, after first boot, install ssh and note the IP:
-sudo dnf install -y openssh-server
+# Fedora Server has sshd on by default; note the Pi's IP (onboard NIC ~ end0):
 sudo systemctl enable --now sshd
 ip addr show
 
 # From your main computer:
-ssh dommusic@<audio-pc-ip>
+ssh dommusic@<pi-ip>
 
 # In the SSH session:
 sudo dnf -y update
-sudo dnf -y install git curl mokutil grubby dnf-plugins-core
+sudo dnf -y install git curl grubby dnf-plugins-core tar
 
 # Download Diretta SDK from https://www.diretta.link/hostsdk.html
 # Transfer it from your main computer:
-#   scp DirettaHostSDK_*.tar.zst dommusic@<audio-pc-ip>:~/
+#   scp DirettaHostSDK_*.tar.zst dommusic@<pi-ip>:~/
 
 # Back in the SSH session:
 cd ~
 tar --zstd -xf DirettaHostSDK_*.tar.zst
-git clone https://github.com/cometdom/fedora-audiophile-setup.git
-cd fedora-audiophile-setup
+git clone https://github.com/cometdom/fedora-rpi-audiophile-setup.git
+cd fedora-rpi-audiophile-setup
 sudo ./setup.sh
 # Pick option 1 (Full install). Answer prompts as in §13.
 
