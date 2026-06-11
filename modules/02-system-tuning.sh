@@ -19,7 +19,13 @@
 
 set -euo pipefail
 
-readonly _TUNER_BASE_URL="https://raw.githubusercontent.com/cometdom/DirettaRendererUPnP/main"
+# Pinned to a specific known-good commit, NOT the moving 'main' branch: the
+# tuner is downloaded and executed at install time, so a broken commit on
+# DRUP's main would break every wizard run (this bit us once — a tuner crash
+# in detect_cpu_topology took the whole full-install down on a Pi 4). Bump
+# this SHA only after vetting a newer tuner on real hardware.
+readonly _TUNER_COMMIT="211291e9142e3d19251adec2258c658ec2a24b5a"
+readonly _TUNER_BASE_URL="https://raw.githubusercontent.com/cometdom/DirettaRendererUPnP/${_TUNER_COMMIT}"
 readonly _TUNER_REGULAR="diretta-renderer-tuner.sh"
 readonly _TUNER_NOSMT="diretta-renderer-tuner-nosmt.sh"
 readonly _TUNER_CACHE_DIR="/var/cache/audiophile-setup"

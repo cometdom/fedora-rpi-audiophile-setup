@@ -402,13 +402,52 @@ run_all_modules() {
     fi
 
     log_step "Running $count module(s) in order."
-    local module path
+    local module path rc
+    local -a failed=()
     for module in "${modules[@]}"; do
         path=$(resolve_module_path "$module")
         log_step "→ $module"
+        # Run each module in a subshell so a failure — including a `set -e`
+        # abort inside the module or in a helper script it calls — is
+        # contained: it kills only the subshell, not the whole wizard. The
+        # subshell inherits every shell variable (LOG_FILE, DRY_RUN,
+        # SCRIPT_DIR, …) and the controlling terminal, so logging and
+        # interactive prompts still work. Modules are independent units (each
+        # is runnable via --only), so none relies on parent-shell state.
+        #
+        # We must NOT put the subshell in an `if`/`&&`/`||` context: bash then
+        # ignores `set -e` *inside* it, so the module wouldn't abort on its own
+        # errors. Instead drop the parent's `set -e` only around a bare
+        # subshell call and capture its status. Each module re-enables
+        # `set -euo pipefail` on its first line, so error-aborting still works
+        # inside the subshell.
+        set +e
         # shellcheck source=/dev/null
-        source "$path"
+        ( source "$path" )
+        rc=$?
+        set -e
+        if [[ "$rc" -eq 0 ]]; then
+            continue
+        fi
+        # Preflight is the hard gate (architecture, OS, IPv6): if it fails,
+        # nothing downstream is meaningful — abort the whole run.
+        if [[ "$module" == "preflight" ]]; then
+            log_error "Preflight failed (rc=$rc) — aborting. Fix the reported pre-conditions and re-run."
+            exit "$rc"
+        fi
+        # Any other module: log loudly and keep going, so one failure no longer
+        # blocks every later module (a user shouldn't have to run them by hand).
+        log_error "Module '$module' failed (rc=$rc). Continuing with the remaining modules."
+        log_error "  Re-run it on its own later with: sudo ./setup.sh --only $module"
+        failed+=("$module")
     done
+
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        log_warn "Finished, but ${#failed[@]} module(s) failed: ${failed[*]}"
+        log_warn "Address the errors above, then re-run each with: sudo ./setup.sh --only <name>"
+    else
+        log_info "All $count modules completed."
+    fi
 }
 
 run_single_module() {
