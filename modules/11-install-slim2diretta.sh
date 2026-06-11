@@ -17,10 +17,19 @@
 #      (NM-only); harmless duplicate — the .link is what reliably applies.
 #   5. Ask optional LMS server IP (empty → auto-discover via Slimproto)
 #   6. git clone slim2Diretta into $HOME/slim2Diretta (as $SUDO_USER)
-#   7. Run ./install.sh as $SUDO_USER in a real TTY (interactive menu).
-#      install.sh deploys /usr/local/bin/slim2diretta + service + conf
-#      itself. The user picks option 1 (Full install) and then option 5
-#      ("Configure network") for the MTU step.
+#   7. Run ./install.sh --full as $SUDO_USER in a real TTY. --full calls
+#      run_full_installation directly (deps, optional codecs, Diretta SDK
+#      check, CMake build, network + firewall config, systemd service) and
+#      deploys /usr/local/bin/slim2diretta + service + conf itself. Going
+#      through --full bypasses install.sh's interactive menu, so its
+#      destructive "Aggressive Fedora optimization" entry (same footgun as
+#      DRUP — strips security services, swaps sshd→dropbear, reboots) is
+#      unreachable. The codec-selection prompt still appears; the network
+#      step is redundant with our .link MTU drop-in (harmless).
+#
+#   Build target needs no help: slim2Diretta's CMakeLists.txt auto-detects
+#   the SDK variant from `uname -m` + `getconf PAGESIZE` (+ a devicetree
+#   model fallback), picking aarch64-linux-15k16 on the Pi 5 automatically.
 #   8. Post-process /etc/default/slim2diretta: set TARGET, TARGET_INTERFACE,
 #      optionally SLIM2DIRETTA_OPTS with the LMS IP.
 #   9. systemctl enable (no start — service waits for next reboot).
@@ -191,7 +200,7 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
         log_info "Will pass LLVM=1 to ./install.sh."
     fi
 
-    log_warn "About to run slim2Diretta ./install.sh as user '${_s2d_user}'."
+    log_warn "About to run slim2Diretta ./install.sh --full as user '${_s2d_user}'."
     log_warn "Answer its interactive prompts (codec selection menu, etc.)."
     # Same upstream firewall caveat as DRUP — if firewalld is off, the
     # install.sh network-config step aborts on a Y to the firewall prompt.
@@ -201,12 +210,14 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
         log_warn "Answering Y aborts install.sh (upstream bug)."
     fi
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_llvm_prefix}./install.sh"
+        log_info "DRY-RUN: would execute as ${_s2d_user}: cd ${_s2d_dir} && ${_s2d_llvm_prefix}./install.sh --full"
     else
         # Direct exec; capture rc so an install.sh hiccup doesn't kill us.
-        # Success = the binary at /usr/local/bin/slim2diretta exists.
+        # --full runs run_full_installation directly (no menu → the aggressive-
+        # optimization entry is unreachable). Success = the binary at
+        # /usr/local/bin/slim2diretta exists.
         set +e
-        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_llvm_prefix}./install.sh"
+        sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ${_s2d_llvm_prefix}./install.sh --full"
         _s2d_rc=$?
         set -e
         if [[ ! -x "$_s2d_binary" ]]; then
