@@ -68,6 +68,8 @@ Une configuration type :
 
 Les configurations à une seule carte réseau fonctionnent aussi — l'assistant gère ce cas automatiquement.
 
+> **Vous tentez sur un Raspberry Pi 4 ?** C'est expérimental mais ça devrait marcher — l'assistant avertit au lieu de bloquer sur un board non-Pi-5, et la build Diretta sélectionne automatiquement la variante SDK 4 KiB du Pi 4. Deux réserves : utilisez un **Pi 4 8 Go** (ou répondez **N** à « Build with Clang + LTO » plus loin — la build LTO peut manquer de mémoire une fois le swap désactivé), et notez que ce guide est rédigé pour le Pi 5 (le Pi 4 utilise une alim **USB-C 15 W**, pas 27 W ; le reste est identique). Un court retour serait très apprécié.
+
 ## 2. Un mot sur le firmware du Pi (pas de BIOS)
 
 Bonne nouvelle : le Raspberry Pi n'a **pas de BIOS** à configurer, ni de **Secure Boot** à désactiver — donc rien de tout le bricolage x86 habituel d'avant-installation ne s'applique. Sur un PC x86, vous désactiveriez les C-states, le SpeedStep et le Turbo Boost dans le BIOS ; sur le Pi, ces réglages n'existent pas, et il n'y a rien à faire ici. L'assistant fixe le CPU sur *performance* et désactive les états de veille profonds côté OS (module 06), ce qui suffit.

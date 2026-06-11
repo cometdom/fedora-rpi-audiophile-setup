@@ -66,6 +66,8 @@ A typical setup:
 
 Single-NIC setups also work — the wizard handles that case automatically.
 
+> **Trying this on a Raspberry Pi 4?** It's experimental but should work — the wizard warns rather than blocks on a non-Pi-5 board, and the Diretta build auto-selects the Pi 4's 4 KiB-page SDK variant. Two caveats: use an **8 GB Pi 4** (or answer **N** to "Build with Clang + LTO" later — the LTO build can run out of memory once swap is disabled), and note this guide is worded for the Pi 5 (the Pi 4 uses a **15 W USB-C** supply, not 27 W; everything else is the same). A short report back would be very welcome.
+
 ## 2. A word on Pi firmware (no BIOS)
 
 Good news: the Raspberry Pi has **no BIOS** to configure, and **no Secure Boot** to disable — so none of the usual x86 pre-install fiddling applies. On an x86 box you'd disable C-states, SpeedStep, and Turbo Boost in the BIOS; on the Pi there is no such knob, and there's nothing to do here. The wizard pins the CPU to *performance* and disables deep idle states at the OS level (module 06), which is all that's needed.

@@ -32,7 +32,7 @@ After a single reboot, your audio host is fully tuned and ready.
 
 ## Requirements
 
-- **Fedora 44 Server (ARM64)** on a **Raspberry Pi 5** (4 GB or 8 GB). The Pi 5 is the recommended target — its 4-core Cortex-A76 leaves enough headroom for one system core plus three isolated audio cores (`isolcpus=1-3`). The Pi 4 may work but is not yet a target of this wizard.
+- **Fedora 44 Server (ARM64)** on a **Raspberry Pi 5** (4 GB or 8 GB). The Pi 5 is the recommended target — its 4-core Cortex-A76 leaves enough headroom for one system core plus three isolated audio cores (`isolcpus=1-3`).
 - Root access
 - Internet connection (to fetch the kernel COPR and dependencies)
 - A handful of host packages installed before running the wizard:
@@ -42,6 +42,12 @@ After a single reboot, your audio host is fully tuned and ready.
   ```
 
   `git` lets you clone this repo; `tar` extracts the Diretta SDK archive (no longer bundled in the Fedora 44 custom base); the others are used by the wizard itself (`curl` to fetch upstream scripts, `grubby` to set the kernel-rt as the default boot entry, `dnf-plugins-core` for `dnf copr enable`). Note: unlike the x86_64 wizard, no `mokutil` and no Secure Boot precondition — Secure Boot is not exposed by Raspberry Pi firmware.
+
+> **Raspberry Pi 4 — experimental.** The Pi 4 is not an official target yet, but it *should* work: `00-preflight` warns rather than blocks on a non-Pi-5 board, and the Diretta build target is auto-detected from the page size (the Pi 4's 4 KiB pages → the `aarch64-linux-15` SDK variant, vs the Pi 5's 16 KiB `…-15k16`). Two things to know before trying:
+> - **Use an 8 GB Pi 4, or answer N to "Build with Clang + LTO".** The LTO FFmpeg build can peak at 4–6 GB, and `09-swap-disable` turns swap off before the build runs — on a 2–4 GB board it may be OOM-killed. (Same caveat applies to a 4 GB Pi 5.)
+> - The build is slower than on a Pi 5 (Cortex-A72 vs A76), and the [newbie walkthrough](docs/en/newbie-walkthrough.md) is worded for the Pi 5 (e.g. it mentions the Pi 5's 27 W PSU — the Pi 4 uses a 15 W USB-C supply); the steps are otherwise the same.
+>
+> If you try it, a short report (works / what broke) is very welcome — it's what would promote the Pi 4 from "should work" to a supported target.
 
 ## Quick start
 
