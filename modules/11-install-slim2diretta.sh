@@ -85,7 +85,7 @@ log_info "Found Diretta SDK: ${_s2d_sdk}"
 log_info "Installing slim2Diretta build prerequisites"
 run_cmd dnf -y install \
     gcc-c++ make cmake pkg-config \
-    flac-devel ethtool
+    flac-devel ethtool python3
 
 # --- 4. NIC selection ----------------------------------------------------
 #
@@ -266,7 +266,28 @@ else
     fi
 fi
 
-# --- 9. Enable service (don't start — wait for reboot) -------------------
+# --- 9. Web config UI (browser, port 8081) — optional --------------------
+#
+# install.sh --full does NOT install the web UI; ./install.sh --webui copies
+# webui/ and runs a small Python server as slim2diretta-webui.service on :8081.
+# slim2Diretta's --webui asks its own Y/N, so we don't add a second prompt
+# here — we just make sure python3 is present (done above) and run it.
+if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+    log_info "DRY-RUN: would run (as ${_s2d_user}): cd ${_s2d_dir} && ./install.sh --webui"
+else
+    log_info "Web UI: running ./install.sh --webui (it will ask whether to install the port-8081 UI)."
+    # Same TTY-direct, non-fatal pattern as the main install.sh run.
+    set +e
+    sudo -u "$_s2d_user" -i bash -c "cd '${_s2d_dir}' && ./install.sh --webui"
+    _s2d_webui_rc=$?
+    set -e
+    if [[ $_s2d_webui_rc -ne 0 ]]; then
+        log_warn "Web UI step exited (rc=${_s2d_webui_rc}). The player itself is unaffected."
+        log_warn "  Re-run later with: cd ${_s2d_dir} && ./install.sh --webui"
+    fi
+fi
+
+# --- 10. Enable service (don't start — wait for reboot) ------------------
 
 run_cmd systemctl enable "$_S2D_SERVICE"
 

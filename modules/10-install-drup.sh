@@ -85,7 +85,7 @@ log_info "Found Diretta SDK: ${_drup_sdk}"
 log_info "Installing DRUP build prerequisites"
 run_cmd dnf -y install \
     git gcc-c++ make pkg-config wget nasm yasm \
-    libupnp-devel ethtool
+    libupnp-devel ethtool python3
 
 # --- 4. NIC selection ----------------------------------------------------
 
@@ -320,7 +320,31 @@ else
     _drup_set_conf_var TARGET 1
 fi
 
-# --- 9. Enable the service (don't start — wait for reboot) --------------
+# --- 9. Web config UI (browser, port 8080) — optional --------------------
+#
+# install.sh --full does NOT install the web UI; it's a separate step
+# (./install.sh --webui) that copies webui/ and runs a small Python server as
+# diretta-renderer-webui.service on :8080. python3 was pre-installed above.
+if ask_yes_no "Install the DirettaRendererUPnP web config UI (browser, port 8080)?" Y; then
+    if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+        log_info "DRY-RUN: would run (as ${_drup_user}): cd ${_drup_dir} && ./install.sh --webui"
+    else
+        log_info "Installing the DRUP web UI via ./install.sh --webui"
+        # Same TTY-direct, non-fatal pattern as the main install.sh run.
+        set +e
+        sudo -u "$_drup_user" -i bash -c "cd '${_drup_dir}' && ./install.sh --webui"
+        _drup_webui_rc=$?
+        set -e
+        if [[ $_drup_webui_rc -ne 0 ]]; then
+            log_warn "Web UI install exited (rc=${_drup_webui_rc}). The renderer itself is unaffected."
+            log_warn "  Re-run later with: cd ${_drup_dir} && ./install.sh --webui"
+        else
+            log_info "Web UI enabled — reachable at http://<this-host>:8080 after reboot."
+        fi
+    fi
+fi
+
+# --- 10. Enable the service (don't start — wait for reboot) --------------
 
 run_cmd systemctl enable "$_DRUP_SERVICE"
 
