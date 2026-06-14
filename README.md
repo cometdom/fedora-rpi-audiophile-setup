@@ -113,6 +113,18 @@ sudo ./setup.sh --only kernel-rt
 - [x] **Newbie walkthrough (EN + FR)** — Part A rewritten Pi-native in both languages: hardware (Pi 5, PSU, active cooler, SD/NVMe, RTL8156 USB-NIC), no-BIOS note, download the aarch64 `.raw.xz`, write to SD (Pi Imager/Etcher), first-boot text setup, grow the root filesystem (`parted` + `resize2fs`), note the IP. Parts B/C/TL;DR de-x86'd (dropped `mokutil`, fixed the clone URL that still pointed at the x86 repo), and a "pick FFmpeg 7.1" row added to §13.
 - [ ] **First `v0.1` tag** — once preflight + system-tuning + DRUP install run cleanly on a vanilla Fedora 44 ARM64 Pi 5 image, with no manual patches
 
+## Optional companion — Lyrion Music Server (LMS)
+
+`extras/lyrion-fedora.sh` is an **optional** installer for [Lyrion Music Server](https://lyrion.org/) (formerly Logitech Media Server), contributed by tester **Auke**. It is **not** part of the wizard's main install — run it on its own:
+
+```bash
+sudo ./extras/lyrion-fedora.sh
+```
+
+LMS is a music **server** (library, scanning, transcoding, web UI on `:9000`). The audiophile-preferred topology runs it on a **separate box** and keeps this Pi a minimal player — co-locate it on the same Pi only if you don't have another server. It pairs naturally with the **slim2Diretta** player (module 11) for a self-contained server + player on one Pi. The menu also offers a **cpu0-only** mode that pins LMS to core 0, leaving the isolated audio cores free.
+
+Tested on Fedora aarch64; **experimental on x86_64** (paste the correct `x86_64` `.rpm` URL when prompted). Reports welcome.
+
 ## License
 
 [MIT](LICENSE)
