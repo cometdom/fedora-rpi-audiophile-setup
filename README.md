@@ -27,6 +27,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 - Disables unneeded services (bluetooth, cups, etc.)
 - Applies a `tuned` profile geared for latency
 - Optionally installs and configures DirettaRendererUPnP and/or slim2Diretta
+- Optional Raspberry Pi hardware tweaks (opt-in): disable the onboard Wi-Fi + Bluetooth radios, and/or disable HDMI output on a headless host
 
 After a single reboot, your audio host is fully tuned and ready.
 

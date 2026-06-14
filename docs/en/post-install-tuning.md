@@ -133,6 +133,15 @@ Optional (asked up front). Detects `SUDO_USER` (DRUP `install.sh` refuses root) 
 
 Same shape as module 10, for slim2Diretta. Standalone (works without DRUP). Lighter — no FFmpeg-from-source. Reuses the Diretta-NIC choice, asks an optional LMS server IP, runs slim2Diretta's interactive `install.sh` (which deploys the binary, service and config itself), then post-processes `/etc/default/slim2diretta` (`TARGET`, `TARGET_INTERFACE`, optional `SLIM2DIRETTA_OPTS`). Service enabled, not started.
 
+### 12 — pi-tweaks
+
+Optional Raspberry Pi hardware tweaks, **entirely opt-in** (a gate prompt plus a per-tweak prompt, all default N). Pi-specific; reduces RF noise and background activity on a headless audio host.
+
+- **Wi-Fi + Bluetooth off.** Primary method: blacklist the kernel modules (`brcmfmac`/`brcmutil` for Wi-Fi, `btbcm`/`hci_uart` for Bluetooth) in `/etc/modprobe.d/99-audiophile-disable-radios.conf`, then `dracut -f` so the blacklist is honoured at boot. Also `rfkill`-blocks them immediately, and — best-effort — appends `dtoverlay=disable-wifi`/`disable-bt` if a Pi `config.txt` is found (`/boot/efi`, `/boot/firmware`, `/boot`); Fedora's firmware-partition layout varies, so the module blacklist is what does the real work. Undo: delete the file, `sudo dracut -f`, reboot.
+- **HDMI output off.** Adds `video=HDMI-A-1:d video=HDMI-A-2:d` to the kernel cmdline via `grubby` (idempotent). **Headless only — no console video afterwards**; only enable it where you can administer over SSH. Undo: `sudo grubby --update-kernel=ALL --remove-args="video=HDMI-A-1:d video=HDMI-A-2:d"`.
+
+The module blacklist and the kernel cmdline are the reliable parts; the `config.txt` overlay is best-effort. _Untested on hardware — awaiting a Pi tester._
+
 ### 99 — finalize
 
 Pure inspection — touches nothing. For each module the wizard ran, the finalizer looks for the mark that module would have left (kernel-rt installed and default boot entry, journald drop-in, fstab tmpfs entries, sysctl drop-ins, `audiophile-cpu-states.service`, tuned profile, swap status, jumbo MTU on a NIC, the renderer services). Each line prints either `[OK]` or `[--]`. A `[--]` is not a failure — it just means the matching module was skipped or its target was optional.
