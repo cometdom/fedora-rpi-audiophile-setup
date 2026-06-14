@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# 12-pi-tweaks — optional Raspberry Pi hardware tweaks (Wi-Fi/Bluetooth off, HDMI off).
+# 13-pi-tweaks — optional Raspberry Pi hardware tweaks (Wi-Fi/Bluetooth off, HDMI off).
 #
 # Pi-specific (aarch64), entirely opt-in (every prompt defaults to N). On a
 # headless audio host these cut RF noise and background activity:

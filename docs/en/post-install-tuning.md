@@ -133,7 +133,11 @@ Optional (asked up front). Detects `SUDO_USER` (DRUP `install.sh` refuses root) 
 
 Same shape as module 10, for slim2Diretta. Standalone (works without DRUP). Lighter — no FFmpeg-from-source. Reuses the Diretta-NIC choice, asks an optional LMS server IP, runs slim2Diretta's interactive `install.sh` (which deploys the binary, service and config itself), then post-processes `/etc/default/slim2diretta` (`TARGET`, `TARGET_INTERFACE`, optional `SLIM2DIRETTA_OPTS`). Service enabled, not started.
 
-### 12 — pi-tweaks
+### 12 — install-slim2upnp
+
+Installs **slim2UPnP** — a Slimproto→UPnP bridge by the same author as DRUP/slim2Diretta. It appears as a player in LMS and streams to a UPnP renderer (typically DirettaRendererUPnP), so the chain becomes LMS → slim2UPnP → DRUP → Diretta; some listeners prefer it to slim2Diretta. Unlike modules 10/11 it needs **no Diretta SDK and no Diretta NIC** — it talks to the renderer over the LAN. The module clones the repo, stops any running instance, then runs its `install.sh` **as root**, which **auto-downloads a precompiled static binary** for this architecture from GitHub Releases (or, opt-in, builds from source with Clang+LTO via `--build` / `LLVM=1`), installs `slim2upnp.service` and a web UI on `:8082`. The service is enabled but not started (waits for the reboot). Renderer + LMS server are set afterwards in the web UI (`http://<host>:8082`), then pick *slim2UPnP* as the player in LMS.
+
+### 13 — pi-tweaks
 
 Optional Raspberry Pi hardware tweaks, **entirely opt-in** (a gate prompt plus a per-tweak prompt, all default N). Pi-specific; reduces RF noise and background activity on a headless audio host.
 
