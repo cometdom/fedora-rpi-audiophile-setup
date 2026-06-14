@@ -197,6 +197,18 @@ else
     run_cmd sudo -u "$_drup_user" git clone "$_DRUP_REPO_URL" "$_drup_dir"
 fi
 
+# --- 5b. Stop a running renderer before (re)installing -------------------
+#
+# On a re-install, the old binary at /opt/diretta-renderer-upnp is still
+# executing, so copying a freshly built one over it fails with "Text file
+# busy". Stop the service first (it's enabled, not started, at the end of this
+# module — it comes back on the next reboot). No-op on a first install.
+# Reported by tester Auke.
+if is_service_active "$_DRUP_SERVICE"; then
+    log_info "Stopping the running ${_DRUP_SERVICE} before (re)installing."
+    run_cmd systemctl stop "$_DRUP_SERVICE" || true
+fi
+
 # --- 6. Run DRUP install.sh as the user (TTY-direct, ~30 min) ------------
 
 _drup_binary="${_drup_dir}/bin/DirettaRendererUPnP"

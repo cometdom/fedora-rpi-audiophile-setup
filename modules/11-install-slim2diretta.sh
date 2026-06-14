@@ -173,6 +173,17 @@ else
     run_cmd sudo -u "$_s2d_user" git clone "$_S2D_REPO_URL" "$_s2d_dir"
 fi
 
+# --- 6b. Stop a running player before (re)installing ---------------------
+#
+# On a re-install, the old /usr/local/bin/slim2diretta is still executing, so
+# overwriting it fails with "Text file busy". Stop the service first (it's
+# enabled, not started, at the end of this module — it returns on the next
+# reboot). No-op on a first install. (Same fix as module 10, reported by Auke.)
+if is_service_active "$_S2D_SERVICE"; then
+    log_info "Stopping the running ${_S2D_SERVICE} before (re)installing."
+    run_cmd systemctl stop "$_S2D_SERVICE" || true
+fi
+
 # --- 7. Run install.sh as the user (TTY-direct) --------------------------
 
 _s2d_binary="/usr/local/bin/slim2diretta"
