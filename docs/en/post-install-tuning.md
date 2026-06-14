@@ -60,7 +60,9 @@ Downloads the `diretta-renderer-tuner.sh` (or its `-nosmt` variant) from Diretta
 - NIC IRQ affinity service
 - Thread round-robin distribution on isolated cores
 
-Fetched fresh so the module works even without DRUP installed (slim2Diretta-only setups).
+Fetched fresh so the module works even without DRUP installed (slim2Diretta-only setups). The tuner is **pinned to a specific known-good DRUP commit** (not the moving `main` branch), so a broken upstream commit can't break an unattended install; the SHA is bumped only after vetting on hardware.
+
+**ARM / Raspberry Pi note.** `detect_cpu_topology()` reads x86-only `/proc/cpuinfo` fields (`vendor_id`, `model name`, `cpu cores`, `physical id` / `core id`). On ARM those greps miss; under the tuner's `set -o pipefail` the grep's exit 1 becomes the pipeline's status (even though the trailing `awk`/`cut`/`sed`/`wc` succeed), and with `set -e` that silently aborted the tuner right after printing `INFO: Detecting CPU topology...` — before the author's own ARM fallbacks (CPU implementer, devicetree model, sysfs `core_id`) could run. The pinned commit fixes this (`|| true` on those assignments), so detection completes correctly on the Pi 5 (4 physical cores, renderer CPUs `1-3`). Diagnosed by tester Auke.
 
 ### 03 — network-stack
 
@@ -121,7 +123,7 @@ Installs `tuned` if absent, enables it, and applies the built-in `latency-perfor
 
 ### 09 — swap-disable
 
-`swapoff -a` (probed via `/proc/swaps` first), `vm.swappiness=0` via `/etc/sysctl.d/99-audiophile-swap.conf`, and active swap lines in `/etc/fstab` commented out with a recognisable tag. fstab is backed up before edit. awk matches the fstab `swap` fstype on field 3, so device paths containing "swap" don't false-positive.
+Four steps. **Step 0 — zram-generator (Fedora-specific).** Fedora installs `zram-generator`, which at every boot creates a compressed swap device (`/dev/zram0`) via `systemd-zram-setup@zram0.service` — entirely outside `/etc/fstab`. `swapoff -a` clears it at runtime, but the generator re-creates it on the next boot, so without this step swap silently returns. The module writes an empty `/etc/systemd/zram-generator.conf` (overrides the `/usr/lib` default → no `[zram0]` section → no device) and masks the unit; both are idempotent and a no-op when `zram-generator` isn't installed. (Found by tester Auke; affects x86 and ARM alike.) **Steps 1–3:** `swapoff -a` (probed via `/proc/swaps` first), `vm.swappiness=0` via `/etc/sysctl.d/99-audiophile-swap.conf`, and active swap lines in `/etc/fstab` commented out with a recognisable tag. fstab is backed up before edit. awk matches the fstab `swap` fstype on field 3, so device paths containing "swap" don't false-positive.
 
 ### 10 — install-drup
 
