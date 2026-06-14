@@ -102,6 +102,8 @@ _s2d_eth_ifaces() {
         iface=$(basename "$sys")
         [[ "$iface" == "lo" ]] && continue
         [[ "$(readlink -f "$sys")" == *"/devices/virtual/"* ]] && continue
+        # Skip wireless (wlan0 is type 1 like ethernet); Diretta/LAN are wired.
+        [[ -e "${sys}/phy80211" || -d "${sys}/wireless" ]] && continue
         typ=$(cat "${sys}/type" 2>/dev/null || echo "")
         [[ "$typ" == "1" ]] || continue
         echo "$iface"

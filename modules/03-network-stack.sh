@@ -68,6 +68,11 @@ _net_physical_ethernet_ifaces() {
         iface=$(basename "$sys")
         [[ "$iface" == "lo" ]] && continue
         [[ "$(readlink -f "$sys")" == *"/devices/virtual/"* ]] && continue
+        # Skip wireless interfaces: wlan0 reports type 1 (ARPHRD_ETHER) like
+        # ethernet, but the wizard manages only wired NICs — renaming wifi to
+        # eth-* is meaningless, and counting it breaks the 2-NIC LAN/Diretta
+        # auto-detect on a Pi with wifi on (the default). Reported via Progman.
+        [[ -e "${sys}/phy80211" || -d "${sys}/wireless" ]] && continue
         typ=$(cat "${sys}/type" 2>/dev/null || echo "")
         [[ "$typ" == "1" ]] || continue
         echo "$iface"
