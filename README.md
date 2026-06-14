@@ -125,3 +125,11 @@ This installer orchestrates and builds on the work of:
 - [slim2Diretta](https://github.com/cometdom/slim2Diretta) by Dominique COMET (cometdom)
 - The Fedora Kernel Vanilla repositories maintained by [Thorsten Leemhuis (knurd)](https://fedoraproject.org/wiki/Kernel_Vanilla_Repositories)
 - All the testers and contributors of the Diretta audiophile community
+
+### Raspberry Pi early testers
+
+Special thanks to the early testers on the Audiophile Style forum who ran this build on real Pi 4/5 hardware, reported precise bugs, and often supplied the fix:
+
+- **Auke** — diagnosed the tuner's `pipefail` abort on ARM (all four x86-only `/proc/cpuinfo` greps, with a `bash -x` trace) and Fedora's `zram-generator` swap persistence; provided patches and documentation notes.
+- **ditusade** — first proved the full stack on a Pi 5, and surfaced the RT kernel not being set as the default boot entry (the `+rt` vmlinuz mismatch).
+- **Progman** — first Pi 4 run; validated the low-RAM FFmpeg 7.1 / no-LTO build path, and surfaced the full-install fragility now hardened with per-module resilience.

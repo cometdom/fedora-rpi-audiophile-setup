@@ -114,3 +114,7 @@ The companion guide `docs/en/fedora-43-minimal-install.md` covers the **pre-requ
 ## Origin
 
 Bootstrap session: 2026-05-14, branch `main`, initial commit. See `git log --reverse` to walk the history from the start.
+
+## Testers
+
+The ARM port was hardened on real hardware by early testers on the Audiophile Style forum (the maintainer owns no Pi). Their reports drove several fixes: **Auke** — the tuner `pipefail` abort on ARM and Fedora's `zram-generator` swap persistence (with patches); **ditusade** — first Pi 5 end-to-end proof and the RT-kernel-default (`+rt` vmlinuz) bug; **Progman** — first Pi 4 run, the low-RAM FFmpeg 7.1 / no-LTO path, and the full-install resilience. See the README for details.
