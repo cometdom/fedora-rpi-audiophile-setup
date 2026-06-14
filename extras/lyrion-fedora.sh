@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # lyrion-fedora.sh — Lyrion Music Server management
-# Standalone script for Fedora on Raspberry Pi (aarch64)
+# Standalone script for Fedora on aarch64 (Raspberry Pi) and x86_64
 #
 # Features:
 #   - Install / Update / Remove Lyrion Music Server via RPM
@@ -28,11 +28,11 @@
 # host a minimal player — only co-locate it on the same Pi if you don't have
 # another server.
 #
-# Tested on Fedora aarch64 (Raspberry Pi). On x86_64 it is EXPERIMENTAL: the
-# download fallback URL, the sox-resampling Bin path (Bin/aarch64-linux/) and a
-# couple of defaults assume aarch64 — paste the correct x86_64 .rpm URL when
-# prompted, and expect the optional sox-resampling feature to need adjusting.
-# Bundled verbatim; please report issues so a proper x86_64 pass can follow.
+# Arch-aware: the LMS RPM is noarch (one package for every arch), so the same
+# download works on aarch64 and x86_64; the only arch-specific bit is the
+# bundled sox helper path (Bin/<uname-m>-linux/), which is derived at runtime.
+# Originally written/tested on Fedora aarch64 (Raspberry Pi); the x86_64 path is
+# now wired up but still wants a confirming run on real Intel/AMD hardware.
 # ----------------------------------------------------------------------------
 
 set -euo pipefail
@@ -59,10 +59,13 @@ LMS_PORT_SLIM=3483
 # Default CPU affinity — can be overridden by CPU0 mode
 LMS_CPU_AFFINITY="${LMS_CPU_AFFINITY:-0-3}"
 
-# Resampling paths
+# Resampling paths. The LMS RPM is noarch (one package for all arches) but it
+# bundles native helper binaries (sox, flac, …) under Bin/<uname-m>-linux/ —
+# i.e. aarch64-linux on a Pi, x86_64-linux on an Intel/AMD host.
+LMS_BIN_ARCH="$(uname -m)-linux"
 LMS_CONVERT_CONF="/etc/squeezeboxserver/custom-convert.conf"
 LMS_RESAMPLE_SCRIPT="/usr/local/bin/lms-resample.sh"
-LMS_SOX_BIN="/usr/share/squeezeboxserver/Bin/aarch64-linux/sox"
+LMS_SOX_BIN="/usr/share/squeezeboxserver/Bin/${LMS_BIN_ARCH}/sox"
 
 MEDIA_GROUP="audio"
 
@@ -220,7 +223,7 @@ import sys, json
 try:
     d = json.load(sys.stdin)
     for section in ['stable', 'latest']:
-        ver = d.get(section, {}).get('rpmarm64', {}).get('version', '') \
+        ver = d.get(section, {}).get('rpm', {}).get('version', '') \
            or d.get(section, {}).get('debarm',  {}).get('version', '')
         if ver: print(ver); break
 except: pass
@@ -230,7 +233,7 @@ except: pass
     if [[ -z "$latest" ]]; then
         local xml
         xml=$(curl -sf --max-time 8 "${LMS_CHANNEL_STABLE}" 2>/dev/null || echo "")
-        [[ -n "$xml" ]] && latest=$(echo "$xml" | grep -o '<rpmarm64[^>]*>' \
+        [[ -n "$xml" ]] && latest=$(echo "$xml" | grep -o '<rpm [^>]*>' \
             | grep -o 'version="[^"]*"' | cut -d'"' -f2 | head -1)
     fi
 
@@ -405,11 +408,11 @@ _lms_resolve_download_url() {
         || wget -qO- --timeout=15 "${LMS_CHANNEL_STABLE}" 2>/dev/null || echo "")
 
     if [[ -n "$xml" ]]; then
-        # Try rpmarm64 tag first, fall back to debarm (version extraction only)
-        LMS_DL_URL=$(echo "$xml" | grep -o '<rpmarm64[^>]*>' | grep -o 'url="[^"]*"' | cut -d'"' -f2 | head -1)
-        LMS_DL_VERSION=$(echo "$xml" | grep -o '<rpmarm64[^>]*>' | grep -o 'version="[^"]*"' | cut -d'"' -f2 | head -1)
+        # The LMS RPM is noarch (one package for every arch): use the <rpm> tag.
+        LMS_DL_URL=$(echo "$xml" | grep -o '<rpm [^>]*>' | grep -o 'url="[^"]*"' | cut -d'"' -f2 | head -1)
+        LMS_DL_VERSION=$(echo "$xml" | grep -o '<rpm [^>]*>' | grep -o 'version="[^"]*"' | cut -d'"' -f2 | head -1)
 
-        # Fallback: derive from deb URL if no rpmarm64 tag
+        # Fallback: derive the version from the deb URL if no rpm tag
         if [[ -z "$LMS_DL_URL" ]]; then
             local deb_url deb_ver
             deb_url=$(echo "$xml" | grep -o '<debarm[^>]*>' | grep -o 'url="[^"]*"' | cut -d'"' -f2 | head -1)
@@ -419,7 +422,7 @@ _lms_resolve_download_url() {
             fi
         fi
     fi
-    [[ -n "$LMS_DL_URL" ]] && { print_success "URL resolved via stable.xml (rpmarm64)"; return 0; }
+    [[ -n "$LMS_DL_URL" ]] && { print_success "URL resolved via stable.xml (noarch rpm)"; return 0; }
 
     print_info "Trying servers.json..."
     local json
@@ -431,7 +434,7 @@ import sys,json
 try:
     d=json.load(sys.stdin)
     for s in ['stable','latest']:
-        u=d.get(s,{}).get('rpmarm64',{}).get('url','')
+        u=d.get(s,{}).get('rpm',{}).get('url','')
         if u and u.endswith('.rpm'): print(u); break
 except: pass
 " 2>/dev/null || echo "")
@@ -440,24 +443,24 @@ import sys,json
 try:
     d=json.load(sys.stdin)
     for s in ['stable','latest']:
-        v=d.get(s,{}).get('rpmarm64',{}).get('version','') \
+        v=d.get(s,{}).get('rpm',{}).get('version','') \
          or d.get(s,{}).get('debarm',{}).get('version','')
         if v: print(v); break
 except: pass
 " 2>/dev/null || echo "")
     fi
-    [[ -n "$LMS_DL_URL" ]] && { print_success "URL resolved via servers.json (rpmarm64)"; return 0; }
+    [[ -n "$LMS_DL_URL" ]] && { print_success "URL resolved via servers.json (noarch rpm)"; return 0; }
 
     print_warning "URL could not be resolved automatically."
     echo ""
     echo "  Find the latest RPM at: https://lyrion.org/getting-started/"
-    echo "  Select: Fedora / RedHat — ARM64 → right-click → copy link address"
+    echo "  Select: Fedora / RedHat (RPM — noarch, any arch) → right-click → copy link"
     echo ""
     echo -n "  Paste .rpm URL here (Enter = hardcoded fallback v9.1.0): "
     read -r LMS_DL_URL
 
     if [[ -z "$LMS_DL_URL" ]]; then
-        LMS_DL_URL="https://downloads.lms-community.org/LyrionMusicServer_v9.1.0/lyrionmusicserver_9.1.0_arm64.rpm"
+        LMS_DL_URL="https://downloads.lms-community.org/LyrionMusicServer_v9.1.0/lyrionmusicserver-9.1.0-1.noarch.rpm"
         LMS_DL_VERSION="9.1.0"
         print_warning "Using hardcoded fallback URL (v${LMS_DL_VERSION}) — may not be the latest version"
         return 0
@@ -514,12 +517,14 @@ _lms_preinstall_checks() {
     echo ""
     echo "[ Architecture ]"
     local arch; arch=$(uname -m)
-    if [[ "$arch" == "aarch64" ]]; then
-        print_success "Architecture: aarch64 (RPi compatible)"
-    else
-        print_warning "Architecture: ${arch} — RPM may not be available for this arch"
-        warnings=$((warnings + 1))
-    fi
+    case "$arch" in
+        aarch64) print_success "Architecture: aarch64 (Raspberry Pi)" ;;
+        x86_64)  print_success "Architecture: x86_64" ;;
+        *)
+            print_warning "Architecture: ${arch} — the LMS RPM is noarch, but the bundled sox helper (Bin/${arch}-linux/) may not ship for this arch"
+            warnings=$((warnings + 1))
+            ;;
+    esac
 
     echo ""
     echo "[ sox (audio resampling) ]"

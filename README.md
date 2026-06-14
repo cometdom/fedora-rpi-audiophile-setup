@@ -123,7 +123,7 @@ sudo ./extras/lyrion-fedora.sh
 
 LMS is a music **server** (library, scanning, transcoding, web UI on `:9000`). The audiophile-preferred topology runs it on a **separate box** and keeps this Pi a minimal player — co-locate it on the same Pi only if you don't have another server. It pairs naturally with the **slim2Diretta** player (module 11) for a self-contained server + player on one Pi. The menu also offers a **cpu0-only** mode that pins LMS to core 0, leaving the isolated audio cores free.
 
-Tested on Fedora aarch64; **experimental on x86_64** (paste the correct `x86_64` `.rpm` URL when prompted). Reports welcome.
+Arch-aware: the LMS RPM is **noarch** (one package for every architecture), so the same auto-resolved download works on both aarch64 and x86_64, and the only arch-specific bit (the bundled `sox` helper path, `Bin/<arch>-linux/`) is derived at runtime. Originally tested on aarch64 (Raspberry Pi); an x86_64 confirming run is welcome.
 
 ## License
 
