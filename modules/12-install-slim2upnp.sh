@@ -63,11 +63,14 @@ fi
 
 # --- Build choice: prebuilt static binary (default) or Clang+LTO source --
 
-_s2u_llvm_prefix=""
+_s2u_llvm_env=""
 _s2u_install_arg=""
 if ask_yes_no "Build slim2UPnP from source with Clang + LTO? (default: download a prebuilt static binary — faster)" N; then
     _s2u_install_arg="--build"
-    _s2u_llvm_prefix="LLVM=1 "
+    # Passed via `env` below. A "LLVM=1" coming from a variable expansion is
+    # NOT recognised as a shell assignment (assignment recognition happens
+    # before expansion), so `${prefix}./install.sh` would try to *run* "LLVM=1".
+    _s2u_llvm_env="LLVM=1"
     log_info "Installing build prerequisites (gcc-c++, cmake, libupnp-devel, clang)."
     run_cmd dnf -y install gcc-c++ cmake libupnp-devel clang
 fi
@@ -87,12 +90,12 @@ fi
 if [[ "$_s2u_run_install" -eq 1 ]]; then
     log_warn "Running slim2UPnP ./install.sh ${_s2u_install_arg} (downloads the binary / builds, then installs the service + web UI)."
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would run: cd ${_s2u_dir} && ${_s2u_llvm_prefix}./install.sh ${_s2u_install_arg}"
+        log_info "DRY-RUN: would run: cd ${_s2u_dir} && env ${_s2u_llvm_env} ./install.sh ${_s2u_install_arg}"
     else
         # Capture rc so an install.sh hiccup doesn't abort the wizard; success
         # is judged by the binary existing.
         set +e
-        ( cd "$_s2u_dir" && ${_s2u_llvm_prefix}./install.sh ${_s2u_install_arg} )
+        ( cd "$_s2u_dir" && env ${_s2u_llvm_env} ./install.sh ${_s2u_install_arg} )
         _s2u_rc=$?
         set -e
         if [[ ! -x "$_S2U_BINARY" ]]; then
