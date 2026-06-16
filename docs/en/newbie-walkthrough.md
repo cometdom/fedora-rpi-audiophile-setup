@@ -249,8 +249,8 @@ What do you want to do?
    2) 00 preflight            — verify hard pre-conditions...
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  14) 99 finalize             — sanity-check + offer reboot
-  15) Exit
+  16) 99 finalize             — sanity-check + offer reboot
+  17) Exit
 
 Choose [1]:
 ```
@@ -286,6 +286,8 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 11 install-slim2diretta | `LMS server IP?` | Leave empty for auto-discovery, or type the LMS IP. |
 | 12 install-slim2upnp | `Install slim2UPnP?` | **Y** if you use LMS and want the LMS → slim2UPnP → DRUP chain (install DRUP too); it's a player that streams to a UPnP renderer. Otherwise **n**. |
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Enter) — downloads a ready-made binary (fast). Answer **Y** only if you specifically want a source build. |
+| 13 pi-tweaks | `Apply optional Pi hardware tweaks?` | **N** (Enter) unless you want to switch off the Pi's onboard Wi-Fi/Bluetooth radios or its HDMI output. Each tweak then asks separately (all default N). |
+| 13 pi-tweaks | `Disable HDMI video output?` | **N** unless the host is fully headless — there's no console display afterwards (SSH only). Reversible later via grubby. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
 
 The longest step by far is **10 install-drup**: it compiles FFmpeg from source. Plan on ~30 minutes during which the screen scrolls a lot of green checkmarks. That's normal.
