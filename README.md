@@ -3,8 +3,7 @@
 Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a tuned audiophile playback host, ready to run [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) and/or [slim2Diretta](https://github.com/cometdom/slim2Diretta).
 
 > 🆕 **First time installing Linux on a Raspberry Pi?** Read the step-by-step newbie walkthrough first — it takes you from a bare Pi 5 to first listening test, no prior knowledge assumed.
-> Available in: **English** ([web](docs/en/newbie-walkthrough.md)) · **Français** ([web](docs/fr/newbie-walkthrough.md)).
-> PDF versions will be generated and attached to GitHub Releases once this repo cuts its first tagged release (`v0.1`).
+> Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
 > **Status: WORK IN PROGRESS — early bootstrap.**
 > This repo is the **ARM64 sibling** of [`fedora-audiophile-setup`](https://github.com/cometdom/fedora-audiophile-setup) (the x86_64 wizard, production at v1.5.0). The codebase is forked from the x86_64 wizard's `main` at `49114a9` and will be adapted module by module so the same workflow runs on a Raspberry Pi 5 host. Until that adaptation is complete you should expect rough edges — the x86_64 repo's `00-preflight` rejects non-x86_64 architectures, the `02-system-tuning` tuner has Intel/AMD vendor checks, and several optimisations are Intel-specific (`intel_pstate/no_turbo`, `intel_pstate/max_perf_pct`). All of those need ARM-aware equivalents or graceful skips.

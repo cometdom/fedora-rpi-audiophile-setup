@@ -2,8 +2,8 @@
 
 # Guide pas à pas pour débutant — Fedora 44 (ARM64) sur Raspberry Pi 5, à partir de zéro
 
-> 🇬🇧 This page is also available in **[English](../en/newbie-walkthrough.md)**.
-> 📄 Les versions PDF des deux guides seront attachées aux GitHub Releases dès la première version taguée (`v0.1`).
+> 🇬🇧 This page is also available in **[English](../en/newbie-walkthrough.md)** — or as a [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf).
+> 🇫🇷 Version PDF de cette page française : [newbie-walkthrough-fr.pdf](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf).
 
 Ce guide vous emmène d'un Raspberry Pi 5 nu jusqu'à un hôte de lecture audiophile entièrement réglé, exécutant [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) et/ou [slim2Diretta](https://github.com/cometdom/slim2Diretta). Aucune expérience Linux préalable n'est requise — chaque étape donne la commande exacte à taper.
 
