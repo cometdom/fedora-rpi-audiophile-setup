@@ -184,7 +184,7 @@ Depuis votre **ordinateur principal** (Terminal sur Mac/Linux, PowerShell sur Wi
 ssh dommusic@192.168.1.104
 ```
 
-Remplacez `dommusic` par le nom d'utilisateur créé en [§5.6](#56-compte-utilisateur) et `192.168.1.104` par l'IP du [§6](#6-noter-ladresse-ip). La première fois, tapez `yes` pour accepter la clé d'hôte, puis saisissez le mot de passe.
+Remplacez `dommusic` par le nom d'utilisateur créé en [§5](#5-premier-démarrage-et-configuration-initiale) et `192.168.1.104` par l'IP du [§6](#6-noter-ladresse-ip). La première fois, tapez `yes` pour accepter la clé d'hôte, puis saisissez le mot de passe.
 
 Vous devriez voir une invite du type `[dommusic@audio-pc ~]$`. Vous êtes connecté.
 

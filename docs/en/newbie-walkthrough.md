@@ -182,7 +182,7 @@ From your **main computer** (Terminal on Mac/Linux, PowerShell on Windows 10+):
 ssh dommusic@192.168.1.104
 ```
 
-Replace `dommusic` with the username you created in [§5.6](#56-user-account) and `192.168.1.104` with the IP from [§6](#6-note-the-ip-address). The first time, type `yes` to accept the host key, then enter the password.
+Replace `dommusic` with the username you created in [§5](#5-first-boot-and-initial-setup) and `192.168.1.104` with the IP from [§6](#6-note-the-ip-address). The first time, type `yes` to accept the host key, then enter the password.
 
 You should see a prompt like `[dommusic@audio-pc ~]$`. You're in.
 
