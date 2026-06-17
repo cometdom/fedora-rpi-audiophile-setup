@@ -2,6 +2,9 @@
 
 # Guide pas à pas pour débutant — Fedora 44 (ARM64) sur Raspberry Pi 5, à partir de zéro
 
+> 🇬🇧 This page is also available in **[English](../en/newbie-walkthrough.md)**.
+> 📄 Les versions PDF des deux guides seront attachées aux GitHub Releases dès la première version taguée (`v0.1`).
+
 Ce guide vous emmène d'un Raspberry Pi 5 nu jusqu'à un hôte de lecture audiophile entièrement réglé, exécutant [DirettaRendererUPnP](https://github.com/cometdom/DirettaRendererUPnP) et/ou [slim2Diretta](https://github.com/cometdom/slim2Diretta). Aucune expérience Linux préalable n'est requise — chaque étape donne la commande exacte à taper.
 
 **Temps nécessaire :** environ 2 à 3 heures au total. L'essentiel est la compilation du noyau + FFmpeg + DRUP, qui tourne sans surveillance.
