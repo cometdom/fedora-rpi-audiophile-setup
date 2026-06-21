@@ -59,9 +59,14 @@ log_step "CPU performance pinning (governor / no-turbo-boost / max-freq cap / c-
 _cpu_write_conf() {
     local current_pct="" current_freq="" current_poll=""
     if [[ -r "$_CPU_CONF" ]]; then
-        current_pct=$(grep -E '^CPU_MAX_PCT='        "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
-        current_freq=$(grep -E '^CPU_FREQ_OVERRIDES=' "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
-        current_poll=$(grep -E '^CPU_POLL_CORES='    "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
+        # `|| true` on each pipeline: with `set -euo pipefail`, a grep that
+        # finds no match returns 1, pipefail propagates it, set -e kills the
+        # script silently after the log_step. That's exactly what happens on
+        # a re-run of a host that has an OLD conf file (CPU_MAX_PCT set, but
+        # the v1.x-added CPU_FREQ_OVERRIDES / CPU_POLL_CORES lines absent).
+        current_pct=$(grep -E '^CPU_MAX_PCT='         "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || true)
+        current_freq=$(grep -E '^CPU_FREQ_OVERRIDES=' "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || true)
+        current_poll=$(grep -E '^CPU_POLL_CORES='     "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || true)
     fi
 
     # --- 1. Global max-frequency cap (CPU_MAX_PCT) -----------------------
