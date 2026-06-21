@@ -6,11 +6,18 @@
 # headless audio host these cut RF noise and background activity:
 #
 #   A. Disable the onboard Wi-Fi + Bluetooth radios. Primary, reliable method:
-#      blacklist the kernel modules (brcmfmac for Wi-Fi, btbcm/hci_uart for BT)
-#      via /etc/modprobe.d, then rebuild the initramfs so the blacklist is
-#      honoured at boot. Also rfkill-blocks them now, and — best-effort — adds
-#      the disable-wifi/disable-bt dtoverlays if a Pi config.txt is found
-#      (Fedora's firmware-partition layout varies, so this is secondary).
+#      use 'install <mod> /bin/false' directives in /etc/modprobe.d for every
+#      Wi-Fi/BT module (brcmfmac, brcmutil, btbcm, hci_uart, btsdio, bluetooth)
+#      and rebuild the initramfs so the directives are honoured at boot.
+#      We do NOT use 'blacklist': on the Pi 5, Bluetooth (btsdio) is bound via
+#      a device-tree entry which bypasses the blacklist mechanism entirely —
+#      a pure blacklist leaves the radios active after reboot (bug reported by
+#      Auke 2026-06-17). The 'install … /bin/false' override intercepts the
+#      module load at the kernel module layer regardless of how it was
+#      triggered (udev, device-tree, manual modprobe). Also rfkill-blocks them
+#      now, and — best-effort — adds the disable-wifi/disable-bt dtoverlays
+#      if a Pi config.txt is found (Fedora's firmware-partition layout varies,
+#      so this is secondary).
 #
 #   B. Disable HDMI video output via the kernel cmdline (video=HDMI-A-*:d, set
 #      with grubby). Headless hosts only — there is NO console video afterwards.
@@ -46,21 +53,28 @@ _pt_find_configtxt() {
 
 if ask_yes_no "  → Disable onboard Wi-Fi + Bluetooth? (wired LAN required)" N; then
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
-        log_info "DRY-RUN: would write ${_PT_MODPROBE} (blacklist brcmfmac/brcmutil/btbcm/hci_uart), rebuild initramfs (dracut -f), rfkill-block, and add disable-wifi/disable-bt to a config.txt if found."
+        log_info "DRY-RUN: would write ${_PT_MODPROBE} (install /bin/false on brcmfmac/brcmutil/btbcm/hci_uart/btsdio/bluetooth), rebuild initramfs (dracut -f), rfkill-block, and add disable-wifi/disable-bt to a config.txt if found."
     else
-        log_info "Blacklisting the Wi-Fi/Bluetooth kernel modules via ${_PT_MODPROBE}"
+        log_info "Disabling Wi-Fi/Bluetooth kernel module autoload via ${_PT_MODPROBE}"
         cat > "$_PT_MODPROBE" <<EOF
 ${_PT_GEN_TAG}
 # Disable the Raspberry Pi onboard Wi-Fi and Bluetooth radios (audiophile host
-# on a wired LAN). To undo: remove this file, then 'sudo dracut -f' and reboot.
-blacklist brcmfmac
-blacklist brcmutil
-blacklist btbcm
-blacklist hci_uart
+# on a wired LAN). 'install <mod> /bin/false' intercepts the module load at the
+# kernel-module layer no matter what triggered it — udev, device-tree, manual
+# modprobe. A 'blacklist' directive would silently miss btsdio (the Pi 5 BT
+# module is bound via device-tree, which bypasses blacklist entirely — Auke
+# bug report 2026-06-17). To undo: remove this file, then 'sudo dracut -f'
+# and reboot.
+install brcmfmac  /bin/false
+install brcmutil  /bin/false
+install btbcm     /bin/false
+install hci_uart  /bin/false
+install btsdio    /bin/false
+install bluetooth /bin/false
 EOF
-        # The blacklist must be baked into the initramfs to apply at boot
+        # The directives must be baked into the initramfs to apply at boot
         # (brcmfmac would otherwise load early). dracut -f rebuilds it.
-        log_info "Rebuilding the initramfs so the blacklist applies at boot (dracut -f)."
+        log_info "Rebuilding the initramfs so the directives apply at boot (dracut -f)."
         run_cmd dracut -f
 
         # Immediate effect this session (best-effort).
