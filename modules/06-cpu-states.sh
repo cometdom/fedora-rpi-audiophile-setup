@@ -17,9 +17,21 @@
 #      periodic khugepaged scan), Kernel Samepage Merging (no periodic
 #      page-merge scan), and NUMA balancing (no async page migration).
 #      Best-effort: missing sysfs nodes skipped silently.
+#   6. (optional) Per-core FIXED frequencies via CPU_FREQ_OVERRIDES
+#      (format "core:freq_khz,…"). Pins both scaling_min_freq and
+#      scaling_max_freq on each listed core, so the core is truly pinned,
+#      not just capped. Runs AFTER step 3 so overrides take precedence
+#      on the listed cores. Vlad's ask 2026-06-18.
+#   7. (optional) Per-core POLL-MODE via CPU_POLL_CORES (format "2,3,4,5"
+#      or "2-5" or "2,4-6"). Disables ALL idle states (incl. C1) on the
+#      listed cores so they busy-loop in C0 — equivalent to kernel cmdline
+#      idle=poll but for a subset of cores only. Non-listed cores keep
+#      the global state[2-9]* off behaviour from step 4. Vlad's ask
+#      2026-06-18.
 #
-# The CPU_MAX_PCT value can be re-tuned WITHOUT re-running the wizard:
-# just edit /etc/default/audiophile-cpu-states and
+# All three optional knobs (CPU_MAX_PCT, CPU_FREQ_OVERRIDES, CPU_POLL_CORES)
+# can be re-tuned WITHOUT re-running the wizard: edit
+# /etc/default/audiophile-cpu-states and
 # `sudo systemctl restart audiophile-cpu-states.service`.
 #
 # Independent of the DRUP tuner — both can coexist safely (they write the
@@ -40,21 +52,24 @@ readonly _CPU_SERVICE_PATH="/etc/systemd/system/${_CPU_SERVICE}"
 readonly _CPU_SCRIPT="/usr/local/sbin/audiophile-cpu-states.sh"
 readonly _CPU_CONF="/etc/default/audiophile-cpu-states"
 
-log_step "CPU performance pinning (governor / no-turbo-boost / max-freq cap / c-states / memory tunings)"
+log_step "CPU performance pinning (governor / no-turbo-boost / max-freq cap / c-states / memory tunings / per-core freq overrides / per-core poll-mode)"
 
-# Read current CPU_MAX_PCT from the conf file (if any), then prompt to
-# set/keep/disable a cap and rewrite the file.
+# Read current values from the conf file (if any), then prompt to
+# set/keep/disable each knob and rewrite the file.
 _cpu_write_conf() {
-    local current=""
+    local current_pct="" current_freq="" current_poll=""
     if [[ -r "$_CPU_CONF" ]]; then
-        current=$(grep -E '^CPU_MAX_PCT=' "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d ' ')
+        current_pct=$(grep -E '^CPU_MAX_PCT='        "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
+        current_freq=$(grep -E '^CPU_FREQ_OVERRIDES=' "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
+        current_poll=$(grep -E '^CPU_POLL_CORES='    "$_CPU_CONF" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "')
     fi
 
+    # --- 1. Global max-frequency cap (CPU_MAX_PCT) -----------------------
     local pct="" suggested=""
-    if [[ -n "$current" ]]; then
-        log_info "Current CPU max-freq cap: ${current}% (from ${_CPU_CONF})."
+    if [[ -n "$current_pct" ]]; then
+        log_info "Current CPU max-freq cap: ${current_pct}% (from ${_CPU_CONF})."
         if ask_yes_no "Keep capping the CPU max frequency?" Y; then
-            suggested="$current"
+            suggested="$current_pct"
         fi
     else
         log_info "Optional: cap the CPU max frequency. Lower peak frequency draws less current — many audiophile users find this lowers perceived electrical noise on the DAC analog rail (subjective). Diretta itself needs very little CPU, so there is ample headroom."
@@ -74,7 +89,51 @@ _cpu_write_conf() {
         done
     fi
 
-    log_info "Writing ${_CPU_CONF} (CPU_MAX_PCT=${pct:-<unset>})"
+    # --- 2. Per-core fixed frequencies (CPU_FREQ_OVERRIDES) --------------
+    local freq_overrides="" want_freq=0
+    if [[ -n "$current_freq" ]]; then
+        log_info "Current per-core CPU frequency overrides: ${current_freq}"
+        ask_yes_no "Keep pinning per-core CPU frequencies?" Y && want_freq=1
+    else
+        log_info "Optional advanced: pin specific cores to a chosen fixed frequency (in kHz). Useful if you've picked frequencies for your audio/IRQ cores. Format: 'core:freq_khz,core:freq_khz,…' (e.g. '2:4400000,3:4400000'). On Intel pstate add 'intel_pstate=passive' to the kernel cmdline so per-CPU writes take precedence."
+        ask_yes_no "Pin per-core CPU frequencies? (advanced, opt-in)" N && want_freq=1
+    fi
+
+    if [[ $want_freq -eq 1 ]]; then
+        while true; do
+            read -r -p "  Format 'core:freq_khz,core:freq_khz,…' [${current_freq:-empty=skip}]: " freq_overrides
+            freq_overrides="${freq_overrides:-$current_freq}"
+            [[ -z "$freq_overrides" ]] && break
+            if [[ "$freq_overrides" =~ ^[0-9]+:[0-9]+(,[0-9]+:[0-9]+)*$ ]]; then
+                break
+            fi
+            echo "Invalid: expected 'core:freq_khz' pairs separated by commas."
+        done
+    fi
+
+    # --- 3. Per-core poll-mode (CPU_POLL_CORES) --------------------------
+    local poll_cores="" want_poll=0
+    if [[ -n "$current_poll" ]]; then
+        log_info "Current per-core poll-mode cores: ${current_poll}"
+        ask_yes_no "Keep poll-mode on those cores?" Y && want_poll=1
+    else
+        log_info "Optional advanced: disable ALL idle states (including C1) on selected cores so they busy-loop in C0. Equivalent to idle=poll but per-core — only the listed cores burn power, the others keep C0/C1. Format: '2,3,4,5' or '2-5' or '2,4-6'."
+        ask_yes_no "Poll-mode on specific cores? (advanced, opt-in)" N && want_poll=1
+    fi
+
+    if [[ $want_poll -eq 1 ]]; then
+        while true; do
+            read -r -p "  Cores list [${current_poll:-empty=skip}]: " poll_cores
+            poll_cores="${poll_cores:-$current_poll}"
+            [[ -z "$poll_cores" ]] && break
+            if [[ "$poll_cores" =~ ^([0-9]+(-[0-9]+)?)(,[0-9]+(-[0-9]+)?)*$ ]]; then
+                break
+            fi
+            echo "Invalid: expected '2,3,4,5' or '2-5' or '2,4-6'."
+        done
+    fi
+
+    log_info "Writing ${_CPU_CONF} (CPU_MAX_PCT=${pct:-<unset>}, CPU_FREQ_OVERRIDES=${freq_overrides:-<unset>}, CPU_POLL_CORES=${poll_cores:-<unset>})"
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
         log_info "DRY-RUN: would write ${_CPU_CONF}"
         return 0
@@ -85,11 +144,29 @@ ${_CPU_GEN_TAG}
 # Edit then: sudo systemctl restart audiophile-cpu-states.service
 # (or: sudo ./setup.sh --only cpu-states  to re-prompt the wizard.)
 #
-# Cap the CPU max frequency to this percent of the hardware max (1-100).
+# 1) Cap the CPU max frequency to this percent of the hardware max (1-100).
 # Empty/unset = no cap. Boost/Turbo is disabled by the service regardless;
 # this only LOWERS the max. Audiophile lore: less peak current = less
 # electrical noise on the DAC analog rail (subjective — try 50/75/100).
 CPU_MAX_PCT=${pct}
+
+# 2) Per-core fixed frequencies. Format: "core:freq_khz,core:freq_khz,…"
+# (e.g. "2:4400000,3:4400000"). The service runs AFTER applying CPU_MAX_PCT,
+# so cores listed here take precedence on those cores; non-listed cores keep
+# the global behaviour. Both scaling_min_freq and scaling_max_freq are set
+# to the requested value, so the core is truly pinned, not just capped.
+# Empty/unset = no per-core override.
+# Intel pstate caveat: add 'intel_pstate=passive' on the kernel cmdline for
+# per-CPU scaling_max_freq writes to take precedence over max_perf_pct.
+CPU_FREQ_OVERRIDES=${freq_overrides}
+
+# 3) Per-core poll-mode. Format: "2,3,4,5" or "2-5" or "2,4-6".
+# Disables ALL idle states (state1 + state[2-9]*) on the listed cores, so
+# they busy-loop in C0. Equivalent to kernel cmdline idle=poll but for a
+# subset of cores. Non-listed cores keep the global behaviour from step 4
+# of the service (state[2-9]* off, C0/C1 allowed). Empty/unset = global
+# behaviour only.
+CPU_POLL_CORES=${poll_cores}
 EOF
 }
 
@@ -110,7 +187,7 @@ _cpu_write_script() {
 
 set -u
 
-# Optional configuration (CPU_MAX_PCT).
+# Optional configuration (CPU_MAX_PCT, CPU_FREQ_OVERRIDES, CPU_POLL_CORES).
 [[ -r /etc/default/audiophile-cpu-states ]] && . /etc/default/audiophile-cpu-states
 
 # 1. Governor = performance on every CPU
@@ -168,6 +245,64 @@ done
 #    c) NUMA balancing: no async kernel page migration between nodes.
 [[ -w /proc/sys/kernel/numa_balancing ]] && echo 0 > /proc/sys/kernel/numa_balancing 2>/dev/null || true
 
+# 6. Optional: per-core fixed frequencies (CPU_FREQ_OVERRIDES).
+#    Format: "core:freq_khz,core:freq_khz,...". On each listed core, writes
+#    both scaling_min_freq and scaling_max_freq to the requested value so
+#    the core is truly pinned (not just capped). Runs AFTER step 3 (max-freq
+#    cap), so overrides take precedence on the listed cores; non-listed
+#    cores keep the global behaviour (governor=performance + optional cap).
+#    Intel pstate caveat: add 'intel_pstate=passive' on the kernel cmdline
+#    so per-CPU scaling_max_freq writes take precedence over max_perf_pct.
+#    Limitation: removing a core from CPU_FREQ_OVERRIDES does NOT release
+#    its previous pin until the next reboot — write its cpuinfo_min_freq
+#    back to scaling_min_freq manually to clear it without rebooting.
+if [[ -n "${CPU_FREQ_OVERRIDES:-}" ]]; then
+    IFS=',' read -ra _freq_pairs <<< "$CPU_FREQ_OVERRIDES"
+    for pair in "${_freq_pairs[@]}"; do
+        pair="${pair// /}"
+        [[ "$pair" =~ ^([0-9]+):([0-9]+)$ ]] || continue
+        c="${BASH_REMATCH[1]}"
+        freq="${BASH_REMATCH[2]}"
+        cpu_dir="/sys/devices/system/cpu/cpu${c}/cpufreq"
+        [[ -d "$cpu_dir" ]] || continue
+        # Write max FIRST so a higher pin doesn't get clamped by a lower
+        # min still in place from a previous run.
+        echo "$freq" > "$cpu_dir/scaling_max_freq" 2>/dev/null || true
+        echo "$freq" > "$cpu_dir/scaling_min_freq" 2>/dev/null || true
+    done
+fi
+
+# 7. Optional: per-core poll-mode (CPU_POLL_CORES).
+#    Format: "2,3,4,5" or "2-5" or "2,4-6". Disables ALL idle states
+#    (state1 + state[2-9]*) on the listed cores so they busy-loop in C0 —
+#    equivalent to kernel cmdline idle=poll but per-core. Runs AFTER step 4
+#    (state[2-9]* off globally) so non-listed cores keep the global
+#    behaviour (state[2-9]* off, C0/C1 allowed).
+if [[ -n "${CPU_POLL_CORES:-}" ]]; then
+    # Inline expander: "2,4-6" -> "2 4 5 6". No external deps so this is
+    # safe to run in the systemd oneshot context with /bin/bash only.
+    _expand_cpu_list() {
+        local spec="$1" out="" part lo hi i
+        IFS=',' read -ra _parts <<< "$spec"
+        for part in "${_parts[@]}"; do
+            part="${part// /}"
+            if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                lo=${BASH_REMATCH[1]}; hi=${BASH_REMATCH[2]}
+                (( hi >= lo )) || continue
+                for ((i=lo; i<=hi; i++)); do out+="$i "; done
+            elif [[ "$part" =~ ^[0-9]+$ ]]; then
+                out+="$part "
+            fi
+        done
+        echo "${out% }"
+    }
+    for c in $(_expand_cpu_list "$CPU_POLL_CORES"); do
+        for s in /sys/devices/system/cpu/cpu${c}/cpuidle/state[1-9]*; do
+            [[ -w "$s/disable" ]] && echo 1 > "$s/disable" 2>/dev/null || true
+        done
+    done
+fi
+
 exit 0
 SCRIPT_EOF
     chmod +x "$_CPU_SCRIPT"
@@ -182,7 +317,7 @@ _cpu_write_service() {
     cat > "$_CPU_SERVICE_PATH" <<EOF
 ${_CPU_GEN_TAG}
 [Unit]
-Description=Audiophile CPU performance pinning (governor, no_turbo, max-freq cap, c-states, memory tunings)
+Description=Audiophile CPU performance pinning (governor, no_turbo, max-freq cap, c-states, memory tunings, per-core freq overrides, per-core poll-mode)
 After=multi-user.target
 
 [Service]
@@ -206,4 +341,4 @@ run_cmd systemctl enable "$_CPU_SERVICE"
 run_cmd systemctl restart "$_CPU_SERVICE"
 
 log_info "CPU performance pinning service installed and active."
-log_info "To experiment with a different max-freq cap: edit ${_CPU_CONF} (CPU_MAX_PCT=…), then 'sudo systemctl restart ${_CPU_SERVICE}'."
+log_info "To experiment with the cap / per-core freq overrides / per-core poll-mode: edit ${_CPU_CONF}, then 'sudo systemctl restart ${_CPU_SERVICE}'."
