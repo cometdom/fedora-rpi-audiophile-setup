@@ -66,17 +66,32 @@ _fin_ram_kargs=$(grubby --info DEFAULT 2>/dev/null \
     | grep '^args=' | head -1 \
     | sed 's/^args="//; s/"$//' || true)
 _fin_ram_dracut_conf="/etc/dracut.conf.d/99-audiophile-ram-overlay.conf"
+_fin_ram_live_fs=$(findmnt -n -o FSTYPE / 2>/dev/null || true)
+_fin_ram_live_var=$(findmnt -n -o FSTYPE /var 2>/dev/null || true)
+_fin_ram_total_mb=$(awk '/^MemTotal:/{printf "%d", $2/1024}' /proc/meminfo)
+_fin_ram_used_mb=$(df --output=used -BM / | tail -1 | tr -d 'M[:space:]')
+_fin_ram_headroom_mb=$(( _fin_ram_total_mb - _fin_ram_used_mb ))
 
 if [[ "$_fin_ram_kargs" == *"systemd.volatile=state"* ]]; then
-    _fin_ok "RAM mode: volatile (/var in RAM via systemd.volatile=state)"
+    _fin_ok "RAM mode: volatile configured (systemd.volatile=state)"
+    if [[ "$_fin_ram_live_var" == "tmpfs" ]]; then
+        _fin_ok "RAM mode: LIVE this boot — /var on tmpfs"
+    else
+        _fin_skip "RAM mode: not yet live — reboot to activate"
+    fi
 elif [[ "$_fin_ram_kargs" == *"audiophile.overlay=1"* ]]; then
     if [[ -f "$_fin_ram_dracut_conf" ]]; then
-        _fin_ok "RAM mode: overlayfs enabled (dracut module present)"
+        _fin_ok "RAM mode: overlayfs configured (dracut module present)"
     else
         _fin_skip "RAM mode: audiophile.overlay=1 in cmdline but dracut conf missing — re-run module 14"
     fi
+    if [[ "$_fin_ram_live_fs" == "overlay" ]]; then
+        _fin_ok "RAM mode: LIVE this boot — root is overlay (${_fin_ram_total_mb} MiB RAM, ${_fin_ram_used_mb} MiB rootfs, ${_fin_ram_headroom_mb} MiB headroom)"
+    else
+        _fin_skip "RAM mode: not yet live — reboot to activate"
+    fi
 else
-    _fin_skip "RAM mode not enabled (module 14 skipped or disabled)"
+    _fin_skip "RAM mode not enabled (module 14 skipped or disabled) — ${_fin_ram_headroom_mb} MiB available if enabled"
 fi
 
 # --- cpu-states service ---
@@ -153,11 +168,15 @@ if [[ $_fin_jumbo_found -eq 0 ]]; then
 fi
 
 # --- Renderer services ---
-if systemctl list-unit-files diretta-renderer.service 2>/dev/null | grep -q diretta-renderer; then
-    if systemctl is-enabled --quiet diretta-renderer.service 2>/dev/null; then
+# DRUP: check the unit file OR the wizard config file (some installs register
+# the unit under a path not always visible to list-unit-files on first boot).
+if systemctl list-unit-files diretta-renderer.service 2>/dev/null | grep -q diretta-renderer \
+        || [[ -f /etc/default/diretta-renderer ]]; then
+    if systemctl is-enabled --quiet diretta-renderer.service 2>/dev/null \
+            || is_service_active diretta-renderer.service; then
         _fin_ok "diretta-renderer.service enabled (DRUP)"
     else
-        _fin_skip "diretta-renderer.service installed but not enabled"
+        _fin_skip "diretta-renderer.service installed but not enabled/active"
     fi
 else
     _fin_skip "DirettaRendererUPnP not installed (module 10 skipped)"
@@ -170,6 +189,15 @@ if systemctl list-unit-files slim2diretta.service 2>/dev/null | grep -q slim2dir
     fi
 else
     _fin_skip "slim2Diretta not installed (module 11 skipped)"
+fi
+if systemctl list-unit-files slim2upnp.service 2>/dev/null | grep -q slim2upnp; then
+    if systemctl is-enabled --quiet slim2upnp.service 2>/dev/null; then
+        _fin_ok "slim2upnp.service enabled"
+    else
+        _fin_skip "slim2upnp.service installed but not enabled"
+    fi
+else
+    _fin_skip "slim2UPnP not installed (module 12 skipped)"
 fi
 
 # --- Reboot prompt ---
