@@ -61,6 +61,24 @@ else
     _fin_skip "no tmpfs entries in fstab (optional — user declined or module 04 skipped)"
 fi
 
+# --- RAM mode (module 14) ---
+_fin_ram_kargs=$(grubby --info DEFAULT 2>/dev/null \
+    | grep '^args=' | head -1 \
+    | sed 's/^args="//; s/"$//' || true)
+_fin_ram_dracut_conf="/etc/dracut.conf.d/99-audiophile-ram-overlay.conf"
+
+if [[ "$_fin_ram_kargs" == *"systemd.volatile=state"* ]]; then
+    _fin_ok "RAM mode: volatile (/var in RAM via systemd.volatile=state)"
+elif [[ "$_fin_ram_kargs" == *"audiophile.overlay=1"* ]]; then
+    if [[ -f "$_fin_ram_dracut_conf" ]]; then
+        _fin_ok "RAM mode: overlayfs enabled (dracut module present)"
+    else
+        _fin_skip "RAM mode: audiophile.overlay=1 in cmdline but dracut conf missing — re-run module 14"
+    fi
+else
+    _fin_skip "RAM mode not enabled (module 14 skipped or disabled)"
+fi
+
 # --- cpu-states service ---
 if systemctl is-enabled --quiet audiophile-cpu-states.service 2>/dev/null; then
     _fin_ok "audiophile-cpu-states.service enabled"

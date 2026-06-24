@@ -254,8 +254,9 @@ What do you want to do?
    2) 00 preflight            — verify hard pre-conditions...
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  16) 99 finalize             — sanity-check + offer reboot
-  17) Exit
+  17) 14 ram-mode             — RAM-mode: full-root-in-RAM via overlayfs or systemd.volatile
+  18) 99 finalize             — sanity-check + offer reboot
+  19) Exit
 
 Choose [1]:
 ```
@@ -293,6 +294,7 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Entrée) — télécharge un binaire prêt à l'emploi (rapide). Répondez **Y** seulement si vous voulez un build depuis les sources. |
 | 13 pi-tweaks | `Apply optional Pi hardware tweaks?` | **N** (Entrée) sauf si vous voulez couper le Wi-Fi/Bluetooth intégré du Pi ou sa sortie HDMI. Chaque tweak est ensuite demandé séparément (tous défaut N). |
 | 13 pi-tweaks | `Disable HDMI video output?` | **N** sauf hôte totalement headless — plus d'affichage console ensuite (SSH uniquement). Réversible via grubby. |
+| 14 ram-mode | `Choice [e/d/N]:` | **N** (Entrée) pour une première installation — le mode RAM est une optimisation optionnelle à activer plus tard. Choisissez **E** pour l'activer : **V** (volatile) met uniquement `/var` en RAM (option la plus légère) ; **O** (overlayfs) charge toute la racine en RAM (les écritures n'existent qu'en RAM et sont perdues au redémarrage — pour rendre un changement permanent : Désactiver, redémarrer, modifier sur la carte SD, Réactiver). Le module affiche la marge mémoire disponible avant de demander ; il faut environ 256 Mio libres minimum. |
 | 99 finalize | `Reboot now?` | **N** (Entrée) au premier passage — vérifions ce qui est installé avant de redémarrer. |
 
 L'étape de loin la plus longue est **10 install-drup** : elle compile FFmpeg depuis les sources. Comptez ~30 minutes pendant lesquelles l'écran défile avec beaucoup de coches vertes. C'est normal.
@@ -336,6 +338,11 @@ ip link show
 ```
 
 Repérez votre carte Diretta (celle choisie à l'étape 10) et confirmez que son MTU est `9014` (ou la valeur choisie).
+
+```bash
+# Si vous avez activé le mode RAM (module 14) :
+findmnt -n -o FSTYPE /    # overlay (mode overlayfs) ou xfs (mode volatile ou désactivé)
+```
 
 En cas de problème, voir le [§17 Dépannage](#17-dépannage) ci-dessous.
 

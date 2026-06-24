@@ -252,8 +252,9 @@ What do you want to do?
    2) 00 preflight            — verify hard pre-conditions...
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  16) 99 finalize             — sanity-check + offer reboot
-  17) Exit
+  17) 14 ram-mode             — RAM-mode: full-root-in-RAM via overlayfs or systemd.volatile
+  18) 99 finalize             — sanity-check + offer reboot
+  19) Exit
 
 Choose [1]:
 ```
@@ -291,6 +292,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Enter) — downloads a ready-made binary (fast). Answer **Y** only if you specifically want a source build. |
 | 13 pi-tweaks | `Apply optional Pi hardware tweaks?` | **N** (Enter) unless you want to switch off the Pi's onboard Wi-Fi/Bluetooth radios or its HDMI output. Each tweak then asks separately (all default N). |
 | 13 pi-tweaks | `Disable HDMI video output?` | **N** unless the host is fully headless — there's no console display afterwards (SSH only). Reversible later via grubby. |
+| 14 ram-mode | `Choice [e/d/N]:` | **N** (Enter) for a first install — RAM mode is an optional post-setup optimization. Choose **E** later to enable it: **V** (volatile) puts `/var` in RAM only (lightest); **O** (overlayfs) loads the entire root into RAM (writes exist only in RAM and are lost on reboot — to make a permanent change: Disable, reboot, edit on SD, Enable again). The module reports headroom before asking; you need at least ~256 MiB free. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
 
 The longest step by far is **10 install-drup**: it compiles FFmpeg from source. Plan on ~30 minutes during which the screen scrolls a lot of green checkmarks. That's normal.
@@ -334,6 +336,11 @@ ip link show
 ```
 
 Find your Diretta NIC (the one you picked at step 10) and confirm its MTU is `9014` (or whatever you chose).
+
+```bash
+# If you enabled RAM mode (module 14):
+findmnt -n -o FSTYPE /    # overlay (overlayfs mode) or xfs (volatile mode or disabled)
+```
 
 If anything is wrong, see [§17 Troubleshooting](#17-troubleshooting-common-issues) below.
 
