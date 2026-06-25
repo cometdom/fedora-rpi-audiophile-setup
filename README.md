@@ -5,15 +5,7 @@ Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a
 > 🆕 **First time installing Linux on a Raspberry Pi?** Read the step-by-step newbie walkthrough first — it takes you from a bare Pi 5 to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: WORK IN PROGRESS — early bootstrap.**
-> This repo is the **ARM64 sibling** of [`fedora-audiophile-setup`](https://github.com/cometdom/fedora-audiophile-setup) (the x86_64 wizard, production at v1.5.0). The codebase is forked from the x86_64 wizard's `main` at `49114a9` and will be adapted module by module so the same workflow runs on a Raspberry Pi 5 host. Until that adaptation is complete you should expect rough edges — the x86_64 repo's `00-preflight` rejects non-x86_64 architectures, the `02-system-tuning` tuner has Intel/AMD vendor checks, and several optimisations are Intel-specific (`intel_pstate/no_turbo`, `intel_pstate/max_perf_pct`). All of those need ARM-aware equivalents or graceful skips.
->
-> **What already works on this exact stack** (confirmed 2026-06-05 by an early tester on a Raspberry Pi 5 running Fedora 44 ARM64 with the `@kernel-vanilla/stable` COPR's aarch64 PREEMPT_RT kernel `7.0.11-301.vanilla.fc44.aarch64+rt`):
-> - DRUP installed and running, ping latency ~50 µs over `eth-diretta` at MTU 9014
-> - `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0` for 4-core isolation (one system core, three audio cores)
-> - DRUP build target `aarch64-linux-15k16` for the Pi 5's 16 KiB pages
->
-> **Track the x86_64 repo for the canonical design**; the docs and per-module rationale there apply almost verbatim to ARM64 — only the mechanism (Intel-specific syscalls, package names, etc.) needs porting.
+> **Status: v2.0.0** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
 
 ## What it does
 
@@ -30,6 +22,7 @@ An interactive Bash wizard that, in a single run, applies all the system-level t
 - Disables unneeded services (bluetooth, cups, etc.)
 - Applies a `tuned` profile geared for latency
 - Optionally installs and configures DirettaRendererUPnP, slim2Diretta and/or slim2UPnP (a Slimproto→UPnP bridge that pairs with DRUP for LMS)
+- Optionally runs the **entire root filesystem from RAM** (module 14): full overlayfs mode via a custom dracut initramfs module (zero disk/SD I/O during playback), or `systemd.volatile=state` for a lighter `/var`-only approach
 - Optional Raspberry Pi hardware tweaks (opt-in): disable the onboard Wi-Fi + Bluetooth radios, and/or disable HDMI output on a headless host
 
 After a single reboot, your audio host is fully tuned and ready.
@@ -70,8 +63,8 @@ What do you want to do?
    2) 00 preflight            — verify Fedora 44 / aarch64 / IPv6
    3) 01 kernel-rt            — install the PREEMPT_RT kernel...
    ...
-  16) 99 finalize             — sanity check + offer reboot
-  17) Exit
+  18) 99 finalize             — sanity check + offer reboot
+  19) Exit
 
 Choose [1]:
 ```
@@ -92,8 +85,7 @@ sudo ./setup.sh --only kernel-rt
 
 ## Documentation
 
-- **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux. Goes from empty mini-PC to first listening test, no prior knowledge assumed. (**Français :** [guide pas à pas pour débutant](docs/fr/newbie-walkthrough.md))
-- [Fedora 43 minimal install (custom)](docs/en/fedora-43-minimal-install.md) — terser install reference.
+- **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux on a Raspberry Pi. Goes from a bare Pi 5 to first listening test, no prior knowledge assumed. (**Français :** [guide pas à pas pour débutant](docs/fr/newbie-walkthrough.md))
 - [Post-install tuning reference](docs/en/post-install-tuning.md) — what each module does, and why.
 - [Diretta NIC toggle](docs/en/diretta-net-toggle.md) — companion tool (`scripts/diretta-net-toggle.sh`) to temporarily bridge the LAN and Diretta NICs so the target is reachable from the LAN (e.g. to check/update its firmware) without recabling, then switch back for listening. systemd-networkd only. (**Français :** [bascule NIC Diretta](docs/fr/diretta-net-toggle.md))
 
@@ -101,21 +93,21 @@ sudo ./setup.sh --only kernel-rt
 
 ### Released
 
-**Forked from** `fedora-audiophile-setup` at commit `49114a9` (post-v1.5.0). All historical x86_64 releases above that point are inherited in the git history of this repo. New tagged releases here will use ARM-specific version numbers (the first one will be `v0.1` — bootstrap).
+- [x] **v1.0.0** — First tagged ARM64 release. Wizard runs end-to-end on a Raspberry Pi 5 (Fedora 44 ARM64, PREEMPT_RT kernel from `@kernel-vanilla/stable`, DRUP + slim2Diretta). Validated on real hardware by Auke, ditusade and Progman.
+- [x] **v1.0.1** — Wi-Fi NIC detection fix in the USB-NIC probing path
+- [x] **v1.0.2** — Newbie walkthrough updated to cover slim2UPnP (module 12) prompts in the step-by-step table (EN + FR)
+- [x] **v1.0.3** — DRUP tuner re-pinned to a fixed upstream commit (grubby cmdline regression fix)
+- [x] **v1.1.0** — Wizard menu sample and documentation refreshed for modules 12 (slim2UPnP) and 13 (Pi tweaks)
+- [x] **v1.2.0** — Universal Diretta MTU persistence via a systemd-udevd `.link` drop-in — works under **both** NetworkManager and systemd-networkd
+- [x] **v1.3.0** — `diretta-net-toggle` companion tool: temporarily bridge LAN + Diretta NICs so the target is reachable from the LAN without recabling, then switch back for listening. systemd-networkd only.
+- [x] **v1.4.0** — Module number (`NN`) shown next to each menu row for easier cross-reference with file names and documentation
+- [x] **v1.5.0** — Stable interface naming by MAC (opt-in, default Y): NICs renamed to `eth-lan` / `eth-diretta` via udev `.link` drop-ins. CPU max-frequency cap (`/etc/default/audiophile-cpu-states`). Memory/MM jitter reducers (THP, KSM, NUMA balancing).
+- [x] **v2.0.0** — **RAM mode** (module 14): run the entire root filesystem from RAM via full overlayfs (custom dracut initramfs module, zero disk/SD I/O during playback) or `systemd.volatile=state` (lightweight `/var`-only variant). Per-core CPU tuning CLI (`scripts/cpu-states-tune.sh`). Functional parity with `fedora-audiophile-setup` v2.0.0. Validated on ARM64 (Fedora 44, Pi 5) by Auke.
 
-### Inherited from fedora-audiophile-setup (x86_64)
+### Planned
 
-- [x] v1.0 → v1.5 — entire feature set of the x86_64 wizard, see the [upstream Roadmap](https://github.com/cometdom/fedora-audiophile-setup#roadmap)
-
-### ARM-specific work to land
-
-- [x] **`00-preflight`** — replace the `[[ "$arch" == "x86_64" ]]` hard-fail with an `aarch64` allow path; drop Secure Boot check (no equivalent on RPi firmware); keep IPv6 and Fedora 44 checks
-- [x] **`02-system-tuning`** — the DRUP `diretta-renderer-tuner.sh` (and its `-nosmt` variant) is now **arch-aware upstream**: on aarch64 `/proc/cpuinfo` carries none of the x86 topology fields, so physical-core detection falls back to sysfs `core_id` → else `nproc` (purely additive, x86 path unchanged). On the Pi 5 this yields the `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0` template. Module 02 here is unchanged — it fetches the fixed tuner from upstream. _Untested on hardware — awaiting a Pi 5 tester._
-- [x] **`06-cpu-states`** — already arch-agnostic: the boot script is best-effort, so the `intel_pstate` knobs (`no_turbo`, `max_perf_pct`) simply fall through to the generic `cpufreq` paths on ARM (governor=performance pins the clock; per-core `scaling_max_freq` caps it). No behaviour change was needed — only the stale "x86_64 only" comments were corrected to acknowledge the Pi 5 (cpufreq-dt). Memory/MM jitter reducers (THP, KSM, NUMA balancing) are arch-agnostic and untouched. _Untested on hardware — awaiting a Pi 5 tester._
-- [x] **`10-install-drup`** — the build target is auto-detected: DRUP's `Makefile` reads `uname -m` + `getconf PAGESIZE` and picks `aarch64-linux-15k16` on the Pi 5 (16 KiB pages) or `aarch64-linux-15` on the Pi 4 (4 KiB), so no `ARCH_NAME` override is needed. Module 10 now runs `./install.sh --full` (bypasses DRUP's menu, so the destructive "Aggressive Fedora optimization" option is unreachable) and warns the user to pick **FFmpeg 7.1** at the version sub-prompt — the default 8.0.1 is reported to fail on the Pi 5 (tester Dave). _Untested on hardware — awaiting a Pi 5 tester._
-- [x] **`11-install-slim2diretta`** — like module 10: the build target is auto-detected (slim2Diretta's `CMakeLists.txt` reads `uname -m` + `getconf PAGESIZE`, with a devicetree-model fallback, → `aarch64-linux-15k16` on the Pi 5), so no override is needed; module 11 now runs `./install.sh --full` to bypass the menu and make its "Aggressive Fedora optimization" entry unreachable. No FFmpeg-version concern here (slim2Diretta links the distro `ffmpeg-free-devel`, it doesn't build FFmpeg from source). _Untested on hardware — awaiting a Pi 5 tester._
-- [x] **Newbie walkthrough (EN + FR)** — Part A rewritten Pi-native in both languages: hardware (Pi 5, PSU, active cooler, SD/NVMe, RTL8156 USB-NIC), no-BIOS note, download the aarch64 `.raw.xz`, write to SD (Pi Imager/Etcher), first-boot text setup, grow the root filesystem (`parted` + `resize2fs`), note the IP. Parts B/C/TL;DR de-x86'd (dropped `mokutil`, fixed the clone URL that still pointed at the x86 repo), and a "pick FFmpeg 7.1" row added to §13.
-- [x] **`v1.0.0`** — first tagged release of the ARM line. Runs end-to-end on a Raspberry Pi 5 (Fedora 44 ARM64): preflight, RT kernel, system-tuning, network, CPU states, DRUP + slim2Diretta with their web UIs. Validated on real hardware by early testers (Auke, ditusade, Progman) — including a full clean install through `finalize` on a Pi 5 (ditusade), all checks green. _slim2Diretta-on-ARM remains the one module not yet tester-confirmed._
+- [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
+- [ ] Optional config-file mode for unattended provisioning
 
 ## Optional companion — Lyrion Music Server (LMS)
 
