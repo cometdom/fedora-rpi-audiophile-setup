@@ -190,7 +190,8 @@ if systemctl list-unit-files slim2diretta.service 2>/dev/null | grep -q slim2dir
 else
     _fin_skip "slim2Diretta not installed (module 11 skipped)"
 fi
-if systemctl list-unit-files slim2upnp.service 2>/dev/null | grep -q slim2upnp; then
+if systemctl list-unit-files slim2upnp.service 2>/dev/null | grep -q slim2upnp \
+        || [[ -x /usr/local/bin/slim2upnp ]]; then
     if systemctl is-enabled --quiet slim2upnp.service 2>/dev/null; then
         _fin_ok "slim2upnp.service enabled"
     else
