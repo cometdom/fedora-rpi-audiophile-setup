@@ -241,11 +241,12 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
 
     log_warn "About to run DRUP ./install.sh --full as user '${_drup_user}'."
     log_warn "It compiles FFmpeg from source — expect ~30 minutes."
-    # Pi 5 guidance (tester Dave, 2026-06-09): install.sh's FFmpeg-version
-    # sub-prompt defaults to option 3 (8.0.1), which is reported to fail on
-    # the Pi 5; option 2 (7.1) builds and runs. Steer the user to 7.1.
-    log_warn "When it asks which FFmpeg to build, choose '2) FFmpeg 7.1'."
-    log_warn "  (The default '3) 8.0.1' is reported to fail on the Raspberry Pi 5.)"
+    # Both FFmpeg 7.1 and 8.0.1 minimal build and run fine on the Pi 5
+    # (Fedora 44 ARM64, confirmed by Auke 2026-06-27). Pick either:
+    #   option 2 — FFmpeg 7.1  (full build, /usr/local)
+    #   option 3 — FFmpeg 8.0.1 minimal (audio-only, /usr) ← default
+    log_info "When it asks which FFmpeg to build, the default (option 3 — 8.0.1 minimal) works fine on the Pi 5."
+    log_info "  Option 2 (7.1) is also excellent. Both produce great sound — pick either."
     # Known upstream bug: install.sh's "Configure firewall to allow UPnP
     # traffic?" step calls firewall-cmd unconditionally and aborts on rc!=0
     # when firewalld is inactive. Warn the user up front so they answer N.
