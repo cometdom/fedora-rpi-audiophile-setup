@@ -21,8 +21,8 @@
 #      its destructive "Aggressive Fedora optimization" entry (menu option 7
 #      — removes firewalld/SELinux/polkit/journald, swaps sshd→dropbear,
 #      reboots, and has wiped a tester's RT kernel) is unreachable. The
-#      FFmpeg-version sub-prompt still appears; on the Pi 5 the default
-#      (8.0.1) is reported to fail, so we steer the user to 7.1.
+#      FFmpeg-version sub-prompt still appears; on Pi we steer the user
+#      to option 2 (7.1.1 minimal) — safest choice for low-RAM boards.
 #   7. Run systemd/install-systemd.sh as root (copies binary, conf, service)
 #   8. Post-process /etc/default/diretta-renderer: set INTERFACE,
 #      TARGET_INTERFACE, TARGET
@@ -241,12 +241,13 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
 
     log_warn "About to run DRUP ./install.sh --full as user '${_drup_user}'."
     log_warn "It compiles FFmpeg from source — expect ~30 minutes."
-    # Both FFmpeg 7.1 and 8.0.1 minimal build and run fine on the Pi 5
+    # FFmpeg menu (as of DRUP v2.5.7):
     # (Fedora 44 ARM64, confirmed by Auke 2026-06-27). Pick either:
-    #   option 2 — FFmpeg 7.1  (full build, /usr/local)
-    #   option 3 — FFmpeg 8.0.1 minimal (audio-only, /usr) ← default
-    log_info "When it asks which FFmpeg to build, the default (option 3 — 8.0.1 minimal) works fine on the Pi 5."
-    log_info "  Option 2 (7.1) is also excellent. Both produce great sound — pick either."
+    #   option 1 — FFmpeg 7.1.1 full build (/usr/local)
+    #   option 2 — FFmpeg 7.1.1 minimal audio (/usr)  ← recommended for Pi
+    #   option 3 — FFmpeg 8.1.2 minimal audio (/usr)  ← default
+    log_info "When it asks which FFmpeg to build, choose option 2 (7.1.1 minimal) on the Pi."
+    log_info "  Smallest footprint, safest on low-RAM boards. Option 3 (8.1.2 minimal) may also work."
     # Known upstream bug: install.sh's "Configure firewall to allow UPnP
     # traffic?" step calls firewall-cmd unconditionally and aborts on rc!=0
     # when firewalld is inactive. Warn the user up front so they answer N.

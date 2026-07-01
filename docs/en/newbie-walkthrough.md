@@ -282,7 +282,7 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 10 install-drup | `Install DirettaRendererUPnP?` | **Y** if you want UPnP / Audirvana / Roon / mConnect. Otherwise **n**. |
 | 10 install-drup | NIC selection | Pick the NIC connected to your Diretta target. The other (with an IP) is your LAN side. |
 | 10 install-drup | `Build DRUP with Clang + LTO?` | **Y** (Enter) — better audio quality, slightly longer build. |
-| 10 install-drup | DRUP `install.sh`'s **FFmpeg version** menu | **2 = FFmpeg 7.1** on the Pi 5. The default (`3 = 8.0.1`) is reported to fail to build on the Pi; 7.1 builds and runs. (The wizard prints this reminder just before launching the installer.) |
+| 10 install-drup | DRUP `install.sh`'s **FFmpeg version** menu | **2 = FFmpeg 7.1.1 minimal** on the Pi. Smallest footprint, easiest on low-RAM boards. Option 3 (8.1.2 minimal, default) may also work since the configure issue was fixed in v2.5.7, but 7.1.1 minimal remains the safest choice on Pi. (The wizard prints this reminder just before launching the installer.) |
 | 10 install-drup | DRUP's own `Configure firewall?` prompt | **N** — you disabled firewalld at step 05. Answering Y here would abort the script. |
 | 10 / 11 | `MTU for the Diretta NIC` (asked by the wizard) | **2 = 9014** (jumbo, default) on most NICs; **3 = 16128** only with a Realtek RTL8156 NIC AND a target that supports it; **1 = 1500** otherwise. |
 | 10 install-drup | DRUP `install.sh`'s own MTU prompt (later) | Give the **same** answer as above. It's a harmless duplicate (nmcli-based); the wizard's `.link` drop-in is what reliably applies, including under systemd-networkd. |
