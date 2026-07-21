@@ -47,6 +47,46 @@ log_warn()  { _log "$C_YELLOW" "WARN " "$@"; }
 log_error() { _log "$C_RED"    "ERROR" "$@"; }
 log_step()  { _log "$C_GREEN"  "STEP " "$@"; }
 
+# --- RAM mode (volatile root) ----------------------------------------------
+
+# Which RAM mode the RUNNING session booted with: "overlay", "volatile" or
+# "none".
+#
+# Reads /proc/cmdline — the kernel actually running — and NOT grubby, which
+# reports what the *next* boot will use. The question here is whether changes
+# made right now survive a reboot, so only the live session matters. The two
+# can disagree: right after Disable + before reboot, grubby says "none" while
+# the session is still volatile.
+current_ram_mode() {
+    local cmdline
+    cmdline=$(cat /proc/cmdline 2>/dev/null || true)
+    if   [[ "$cmdline" == *"audiophile.overlay=1"*   ]]; then echo "overlay"
+    elif [[ "$cmdline" == *"systemd.volatile=state"* ]]; then echo "volatile"
+    else                                                      echo "none"
+    fi
+}
+
+# Warn up-front when the running session throws writes away on reboot.
+# Without this, a user can run the whole wizard (or a git pull, or an
+# install) and silently lose all of it at the next boot.
+warn_if_ram_mode() {
+    case "$(current_ram_mode)" in
+        overlay)
+            log_warn "RAM mode is ACTIVE (overlayfs) — the root filesystem is a tmpfs overlay."
+            log_warn "EVERYTHING written in this session is LOST on reboot: this wizard's"
+            log_warn "changes, package installs, git pulls, compiled binaries. There is no"
+            log_warn "in-session way to make a change permanent."
+            log_warn "To persist changes: run the ram-mode module -> D) Disable, reboot, redo"
+            log_warn "the changes on the disk-backed root, then Enable RAM mode again."
+            ;;
+        volatile)
+            log_warn "RAM mode is ACTIVE (systemd.volatile=state) — /var is a tmpfs."
+            log_warn "Writes under /var are LOST on reboot; /etc and /home stay on disk."
+            ;;
+    esac
+}
+
+
 # --- Prompts ---------------------------------------------------------------
 
 # ask_yes_no "Question?" [default=Y|N]  — sets REPLY=0 (yes) or 1 (no)

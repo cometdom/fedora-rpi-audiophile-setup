@@ -65,6 +65,10 @@ fi
 
 init_log
 
+# Warn before anything runs: in RAM mode every change is discarded on reboot,
+# so the user must know now rather than after a whole install evaporates.
+warn_if_ram_mode
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
     log_warn "Running in --dry-run mode. No changes will be applied."
 fi
