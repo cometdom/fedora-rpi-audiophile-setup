@@ -5,7 +5,7 @@ Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a
 > 🆕 **First time installing Linux on a Raspberry Pi?** Read the step-by-step newbie walkthrough first — it takes you from a bare Pi 5 to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.0.0** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
+> **Status: v2.2.0** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
 
 ## What it does
 
@@ -103,6 +103,8 @@ sudo ./setup.sh --only kernel-rt
 - [x] **v1.4.0** — Module number (`NN`) shown next to each menu row for easier cross-reference with file names and documentation
 - [x] **v1.5.0** — Stable interface naming by MAC (opt-in, default Y): NICs renamed to `eth-lan` / `eth-diretta` via udev `.link` drop-ins. CPU max-frequency cap (`/etc/default/audiophile-cpu-states`). Memory/MM jitter reducers (THP, KSM, NUMA balancing).
 - [x] **v2.0.0** — **RAM mode** (module 14): run the entire root filesystem from RAM via full overlayfs (custom dracut initramfs module, zero disk/SD I/O during playback) or `systemd.volatile=state` (lightweight `/var`-only variant). Per-core CPU tuning CLI (`scripts/cpu-states-tune.sh`). Functional parity with `fedora-audiophile-setup` v2.0.0. Validated on ARM64 (Fedora 44, Pi 5) by Auke.
+- [x] **v2.1.0** — `99-finalize` reporting fixes: DRUP false-negative in the systemctl check, slim2UPnP detection added (with a binary fallback), extended RAM-mode live status.
+- [x] **v2.2.0** — FFmpeg 8.0.1 minimal confirmed working on Pi 5 (`10-install-drup`), FFmpeg menu references updated for DRUP v2.5.7, and a **RAM-mode warning at wizard launch**: `setup.sh` now warns *before any action* when the running session discards writes on reboot (overlayfs: everything is lost; `systemd.volatile`: `/var` only). Detection reads `/proc/cmdline` (the kernel actually running), not `grubby` (which reports the *next* boot). Reported by Auke.
 
 ### Planned
 
