@@ -81,14 +81,14 @@ _tuning_download() {
 
 if _tuning_already_applied; then
     log_info "DRUP tuner already applied to this host (cpu-performance-diretta*.service present)."
-    if ! ask_yes_no "Re-run the DRUP tuner anyway?" N; then
+    if ! ask_yes_no "Re-run the DRUP tuner anyway?" N TUNER_RERUN; then
         return 0 2>/dev/null || exit 0
     fi
 fi
 
 _tuning_check_internet
 
-if ask_yes_no "Use the -nosmt tuner variant (disables Hyper-Threading / SMT — recommended on Intel HT or AMD SMT CPUs for lowest jitter)?" N; then
+if ask_yes_no "Use the -nosmt tuner variant (disables Hyper-Threading / SMT — recommended on Intel HT or AMD SMT CPUs for lowest jitter)?" N NOSMT; then
     _tuner_script="${_TUNER_NOSMT}"
 else
     _tuner_script="${_TUNER_REGULAR}"

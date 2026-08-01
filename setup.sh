@@ -21,17 +21,36 @@ DRY_RUN=0
 ONLY_MODULE=""
 SHOW_HELP=0
 
+UNATTENDED=0
+ANSWERS_FILE=""
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --dry-run)   DRY_RUN=1 ;;
-        --only)      ONLY_MODULE="${2:-}"; shift ;;
-        -h|--help)   SHOW_HELP=1 ;;
-        *)           log_error "Unknown argument: $1"; SHOW_HELP=1 ;;
+        --dry-run)    DRY_RUN=1 ;;
+        --only)       ONLY_MODULE="${2:-}"; shift ;;
+        --unattended) UNATTENDED=1 ;;
+        --answers)    ANSWERS_FILE="${2:-}"; shift ;;
+        -h|--help)    SHOW_HELP=1 ;;
+        *)            log_error "Unknown argument: $1"; SHOW_HELP=1 ;;
     esac
     shift
 done
 
 export DRY_RUN
+export UNATTENDED
+
+# The answers file is a plain env file of UA_<KEY>=value overrides (see
+# extras/answers-example.env). Sourced before any module runs so every
+# prompt can resolve against it; only meaningful with --unattended, but
+# harmless without.
+if [[ -n "$ANSWERS_FILE" ]]; then
+    if [[ ! -r "$ANSWERS_FILE" ]]; then
+        log_error "Answers file not readable: $ANSWERS_FILE"
+        exit 1
+    fi
+    # shellcheck source=/dev/null
+    source "$ANSWERS_FILE"
+fi
 
 if [[ "$SHOW_HELP" -eq 1 ]]; then
     cat <<EOF
@@ -44,6 +63,12 @@ Usage:
                                         preview every action without applying.
   sudo ./setup.sh --only <module>       Run a single module directly, skipping
                                         the menu (power-user shortcut).
+  sudo ./setup.sh --unattended          Run ALL modules without a TTY: every
+                                        prompt takes its default, overridable
+                                        via --answers (kickstart %post, CI).
+  sudo ./setup.sh --answers <file>      Env file of UA_<KEY>=value overrides
+                                        for --unattended prompts. See
+                                        extras/answers-example.env.
   sudo ./setup.sh --help                Show this help.
 
 Available modules (in execution order):

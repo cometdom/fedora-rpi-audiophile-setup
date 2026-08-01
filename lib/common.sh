@@ -88,13 +88,71 @@ warn_if_ram_mode() {
 
 
 # --- Prompts ---------------------------------------------------------------
+#
+# Unattended mode (`setup.sh --unattended [--answers FILE]`): every prompt
+# resolves without a TTY — the UA_<KEY> variable from the answers file wins,
+# else the prompt's default. Prompts never call `read` in this mode: in a
+# kickstart %post or CI there is no stdin, and under `set -e` a bare `read`
+# hitting EOF aborts the whole run.
 
-# ask_yes_no "Question?" [default=Y|N]  — sets REPLY=0 (yes) or 1 (no)
+# How many times each key has been served in unattended mode. A prompt inside
+# a validation loop re-asks on invalid input; in unattended mode the same
+# (invalid) override would come back forever, so the third serve of one key
+# fails fast instead of spinning.
+declare -gA _UA_SERVED=()
+
+# The UA_<KEY> override for a key, or empty.
+unattended_answer() {
+    local var="UA_$1"
+    echo "${!var:-}"
+}
+
+# resolve_input KEY "prompt" [default] — one free-form prompt, both modes.
+# Interactive: plain `read` with the prompt; empty answer stays empty so the
+# call site's own `${var:-default}` handling is untouched.
+# Unattended:  UA_<KEY> if set, else `default`; logged to stderr (stdout is
+# the captured answer), never read.
+resolve_input() {
+    local key="$1" prompt="$2" default="${3:-}" answer
+    if [[ "${UNATTENDED:-0}" -eq 1 ]]; then
+        _UA_SERVED[$key]=$(( ${_UA_SERVED[$key]:-0} + 1 ))
+        if (( ${_UA_SERVED[$key]} >= 3 )); then
+            log_error "Unattended: UA_${key}='$(unattended_answer "$key")' keeps being rejected by its prompt loop — aborting instead of spinning." >&2
+            exit 1
+        fi
+        answer="$(unattended_answer "$key")"
+        answer="${answer:-$default}"
+        log_info "[unattended] ${prompt} -> ${answer:-<empty>} (UA_${key})" >&2
+        echo "$answer"
+        return 0
+    fi
+    read -r -p "$prompt " answer
+    echo "$answer"
+}
+
+# ask_yes_no "Question?" [default=Y|N] [KEY]  — return 0 (yes) or 1 (no).
+# In unattended mode the KEY's UA_ override (or the default) decides; a
+# question without a KEY always takes its default there.
 ask_yes_no() {
     local prompt="$1"
     local default="${2:-Y}"
-    local hint
+    local key="${3:-}"
+    local hint answer
     [[ "$default" == "Y" ]] && hint="[Y/n]" || hint="[y/N]"
+
+    if [[ "${UNATTENDED:-0}" -eq 1 ]]; then
+        answer="$default"
+        if [[ -n "$key" ]]; then
+            local override
+            override="$(unattended_answer "$key")"
+            answer="${override:-$default}"
+        fi
+        log_info "[unattended] ${prompt} ${hint} -> ${answer}${key:+ (UA_${key})}"
+        case "$answer" in
+            [Yy]|[Yy][Ee][Ss]) return 0 ;;
+            *)                 return 1 ;;
+        esac
+    fi
 
     while true; do
         read -r -p "$prompt $hint " answer
@@ -328,7 +386,7 @@ ensure_diretta_mtu_link() {
 
     # Keep existing value, or prompt to reconfigure.
     if [[ -n "$cur" ]]; then
-        if ! ask_yes_no "Diretta NIC MTU already configured (MTUBytes=${cur} in ${canonical_file}). Reconfigure?" N; then
+        if ! ask_yes_no "Diretta NIC MTU already configured (MTUBytes=${cur} in ${canonical_file}). Reconfigure?" N MTU_RECONFIGURE; then
             log_info "Keeping the existing MTU value for Diretta NIC (MTUBytes=${cur})."
             # If we only know the value from a legacy file just migrated, we
             # still need to write the canonical file with that value.
@@ -348,7 +406,7 @@ ensure_diretta_mtu_link() {
         echo "  2) 9014   (jumbo — recommended; RTL8156 and most jumbo-capable NICs)"
         echo "  3) 16128  (max — only if your Diretta target supports it)"
         while [[ -z "$mtu" ]]; do
-            read -r -p "Choose [2]: " choice
+            choice="$(resolve_input DIRETTA_MTU "Choose [2]:")"
             case "${choice:-2}" in
                 1) mtu=1500 ;;
                 2) mtu=9014 ;;
@@ -536,6 +594,14 @@ show_menu_and_dispatch() {
     while IFS= read -r m; do names+=("$m"); done < <(list_modules)
     if [[ ${#names[@]} -eq 0 ]]; then
         log_warn "No modules found in $MODULES_DIR — nothing to do."
+        return 0
+    fi
+
+    # Unattended: no menu to draw, no choice to make — the whole point is a
+    # full install with every prompt resolved from defaults/answers.
+    if [[ "${UNATTENDED:-0}" -eq 1 ]]; then
+        log_info "Unattended mode: running the full install (all modules in order)."
+        run_all_modules
         return 0
     fi
 

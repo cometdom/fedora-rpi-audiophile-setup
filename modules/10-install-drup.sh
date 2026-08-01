@@ -37,7 +37,7 @@ readonly _DRUP_SERVICE="diretta-renderer.service"
 
 log_step "Install DirettaRendererUPnP"
 
-if ! ask_yes_no "Install DirettaRendererUPnP?" Y; then
+if ! ask_yes_no "Install DirettaRendererUPnP?" Y DRUP_INSTALL; then
     log_info "Skipping DRUP install."
     return 0 2>/dev/null || exit 0
 fi
@@ -134,7 +134,7 @@ _drup_pick_iface() {
         done
     } >&2
     while true; do
-        read -r -p "Number [1]: " _pick
+        _pick="$(resolve_input DRUP_DEVICE_PICK "Number [1]:")"
         _pick="${_pick:-1}"
         if [[ "$_pick" =~ ^[1-9][0-9]*$ ]] && (( _pick >= 1 && _pick <= ${#choices[@]} )); then
             echo "${choices[$((_pick-1))]}"
@@ -217,7 +217,7 @@ _drup_binary="${_drup_dir}/bin/DirettaRendererUPnP"
 _drup_run_install=1
 if [[ -f "$_drup_binary" ]]; then
     log_info "DRUP binary already exists at ${_drup_binary}."
-    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N; then
+    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N DRUP_RERUN; then
         log_info "Keeping the existing binary — skipping ./install.sh."
         _drup_run_install=0
     fi
@@ -230,7 +230,7 @@ if [[ "$_drup_run_install" -eq 1 ]]; then
     # reasoning as for cmake on module 11: an install.sh pre-check that
     # invokes clang before its own dnf install would otherwise fail.
     _drup_llvm_prefix=""
-    if ask_yes_no "Build DRUP with Clang + LTO (recommended for sound quality)?" Y; then
+    if ask_yes_no "Build DRUP with Clang + LTO (recommended for sound quality)?" Y DRUP_CLANG_LTO; then
         _drup_llvm_prefix="LLVM=1 "
         if ! has_package clang || ! has_package lld; then
             log_info "Pre-installing clang and lld for the LLVM build."
@@ -341,7 +341,7 @@ fi
 # install.sh --full does NOT install the web UI; it's a separate step
 # (./install.sh --webui) that copies webui/ and runs a small Python server as
 # diretta-renderer-webui.service on :8080. python3 was pre-installed above.
-if ask_yes_no "Install the DirettaRendererUPnP web config UI (browser, port 8080)?" Y; then
+if ask_yes_no "Install the DirettaRendererUPnP web config UI (browser, port 8080)?" Y DRUP_WEBUI; then
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
         log_info "DRY-RUN: would run (as ${_drup_user}): cd ${_drup_dir} && ./install.sh --webui"
     else

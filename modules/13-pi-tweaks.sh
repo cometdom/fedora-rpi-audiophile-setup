@@ -35,7 +35,7 @@ readonly _PT_HDMI_ARGS="video=HDMI-A-1:d video=HDMI-A-2:d"
 
 log_step "Raspberry Pi hardware tweaks (optional) — Wi-Fi/Bluetooth off, HDMI off"
 
-if ! ask_yes_no "Apply optional Raspberry Pi hardware tweaks (radios off / HDMI off)?" N; then
+if ! ask_yes_no "Apply optional Raspberry Pi hardware tweaks (radios off / HDMI off)?" N PI_TWEAKS; then
     log_info "Skipping Pi hardware tweaks."
     return 0 2>/dev/null || exit 0
 fi
@@ -51,7 +51,7 @@ _pt_find_configtxt() {
 
 # --- A. Wi-Fi + Bluetooth off --------------------------------------------
 
-if ask_yes_no "  → Disable onboard Wi-Fi + Bluetooth? (wired LAN required)" N; then
+if ask_yes_no "  → Disable onboard Wi-Fi + Bluetooth? (wired LAN required)" N PI_TWEAKS_WIFI_BT; then
     if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
         log_info "DRY-RUN: would write ${_PT_MODPROBE} (install /bin/false on brcmfmac/brcmutil/btbcm/hci_uart/btsdio/bluetooth), rebuild initramfs (dracut -f), rfkill-block, and add disable-wifi/disable-bt to a config.txt if found."
     else
@@ -99,7 +99,7 @@ fi
 
 # --- B. HDMI output off --------------------------------------------------
 
-if ask_yes_no "  → Disable HDMI video output? (HEADLESS only — no console video after this)" N; then
+if ask_yes_no "  → Disable HDMI video output? (HEADLESS only — no console video after this)" N PI_TWEAKS_HDMI; then
     log_warn "HDMI output will be disabled at the kernel level — you will have NO console display after reboot."
     log_warn "Only do this on a host you can fully administer over SSH."
     log_warn "To undo later: sudo grubby --update-kernel=ALL --remove-args=\"${_PT_HDMI_ARGS}\" ; then reboot."

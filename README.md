@@ -5,7 +5,7 @@ Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a
 > 🆕 **First time installing Linux on a Raspberry Pi?** Read the step-by-step newbie walkthrough first — it takes you from a bare Pi 5 to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.2.0** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
+> **Status: v2.3.0** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
 
 ## What it does
 
@@ -83,6 +83,28 @@ Power-user shortcut: skip the menu and re-run a single module by name:
 sudo ./setup.sh --only kernel-rt
 ```
 
+### Unattended mode
+
+For scripted installs — a kickstart `%post`, CI, or fleet provisioning — the whole wizard can run without a TTY:
+
+```bash
+sudo ./setup.sh --unattended
+sudo ./setup.sh --unattended --answers my-answers.env
+```
+
+Every prompt takes its default; an answers file overrides any of them through `UA_<KEY>` variables (one per prompt — the full list, with each prompt's default, is in [`extras/answers-example.env`](extras/answers-example.env)):
+
+```bash
+# my-answers.env — headless appliance: RAM mode on, no Diretta apps
+UA_RAM_MODE_ACTION=e
+UA_RAM_MODE_STRATEGY=V
+UA_RAM_MODE_ENABLE=Y
+UA_DRUP_INSTALL=N
+UA_S2D_INSTALL=N
+```
+
+`--dry-run --unattended` previews the whole run, answers included. An invalid answer that a prompt loop keeps rejecting aborts the run (fail-fast) rather than looping forever.
+
 ## Documentation
 
 - **[Newbie walkthrough](docs/en/newbie-walkthrough.md)** — start here if you've never installed Linux on a Raspberry Pi. Goes from a bare Pi 5 to first listening test, no prior knowledge assumed. (**Français :** [guide pas à pas pour débutant](docs/fr/newbie-walkthrough.md))
@@ -105,11 +127,12 @@ sudo ./setup.sh --only kernel-rt
 - [x] **v2.0.0** — **RAM mode** (module 14): run the entire root filesystem from RAM via full overlayfs (custom dracut initramfs module, zero disk/SD I/O during playback) or `systemd.volatile=state` (lightweight `/var`-only variant). Per-core CPU tuning CLI (`scripts/cpu-states-tune.sh`). Functional parity with `fedora-audiophile-setup` v2.0.0. Validated on ARM64 (Fedora 44, Pi 5) by Auke.
 - [x] **v2.1.0** — `99-finalize` reporting fixes: DRUP false-negative in the systemctl check, slim2UPnP detection added (with a binary fallback), extended RAM-mode live status.
 - [x] **v2.2.0** — FFmpeg 8.0.1 minimal confirmed working on Pi 5 (`10-install-drup`), FFmpeg menu references updated for DRUP v2.5.7, and a **RAM-mode warning at wizard launch**: `setup.sh` now warns *before any action* when the running session discards writes on reboot (overlayfs: everything is lost; `systemd.volatile`: `/var` only). Detection reads `/proc/cmdline` (the kernel actually running), not `grubby` (which reports the *next* boot). Reported by Auke.
+- [x] **v2.3.0** — **Unattended mode** (`--unattended`, `--answers`): the entire wizard runs without a TTY, every prompt driven by `UA_<KEY>` environment variables. Enables scripted appliance builds, kickstart `%post`, and CI provisioning. `extras/answers-example.env` lists all keys with their defaults. Ported from the x86 sibling (Bertrand Clech / renesenses), with Pi-specific keys (`PI_TWEAKS`, `PI_TWEAKS_WIFI_BT`, `PI_TWEAKS_HDMI`).
 
 ### Planned
 
 - [ ] Optional advanced path: compile the vanilla PREEMPT_RT kernel from source
-- [ ] Optional config-file mode for unattended provisioning
+- [x] Optional config-file mode for unattended provisioning
 
 ## Optional companion — Lyrion Music Server (LMS)
 

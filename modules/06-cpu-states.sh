@@ -73,19 +73,19 @@ _cpu_write_conf() {
     local pct="" suggested=""
     if [[ -n "$current_pct" ]]; then
         log_info "Current CPU max-freq cap: ${current_pct}% (from ${_CPU_CONF})."
-        if ask_yes_no "Keep capping the CPU max frequency?" Y; then
+        if ask_yes_no "Keep capping the CPU max frequency?" Y CPU_CAP_KEEP; then
             suggested="$current_pct"
         fi
     else
         log_info "Optional: cap the CPU max frequency. Lower peak frequency draws less current — many audiophile users find this lowers perceived electrical noise on the DAC analog rail (subjective). Diretta itself needs very little CPU, so there is ample headroom."
-        if ask_yes_no "Cap the CPU max frequency? (opt-in)" N; then
+        if ask_yes_no "Cap the CPU max frequency? (opt-in)" N CPU_CAP; then
             suggested="50"
         fi
     fi
 
     if [[ -n "$suggested" ]]; then
         while true; do
-            read -r -p "Cap percent [1-100, default ${suggested}]: " pct
+            pct="$(resolve_input CPU_CAP_PCT "Cap percent [1-100, default ${suggested}]:")"
             pct="${pct:-$suggested}"
             if [[ "$pct" =~ ^([1-9][0-9]?|100)$ ]]; then
                 break
@@ -98,15 +98,15 @@ _cpu_write_conf() {
     local freq_overrides="" want_freq=0
     if [[ -n "$current_freq" ]]; then
         log_info "Current per-core CPU frequency overrides: ${current_freq}"
-        ask_yes_no "Keep pinning per-core CPU frequencies?" Y && want_freq=1
+        ask_yes_no "Keep pinning per-core CPU frequencies?" Y CPU_FREQ_PIN_KEEP && want_freq=1
     else
         log_info "Optional advanced: pin specific cores to a chosen fixed frequency (in kHz). Useful if you've picked frequencies for your audio/IRQ cores. Format: 'core:freq_khz,core:freq_khz,…' (e.g. '2:4400000,3:4400000'). On Intel pstate add 'intel_pstate=passive' to the kernel cmdline so per-CPU writes take precedence."
-        ask_yes_no "Pin per-core CPU frequencies? (advanced, opt-in)" N && want_freq=1
+        ask_yes_no "Pin per-core CPU frequencies? (advanced, opt-in)" N CPU_FREQ_PIN && want_freq=1
     fi
 
     if [[ $want_freq -eq 1 ]]; then
         while true; do
-            read -r -p "  Format 'core:freq_khz,core:freq_khz,…' [${current_freq:-empty=skip}]: " freq_overrides
+            freq_overrides="$(resolve_input CPU_FREQ_OVERRIDES "  Format 'core:freq_khz,core:freq_khz,…' [${current_freq:-empty=skip}]:")"
             freq_overrides="${freq_overrides:-$current_freq}"
             [[ -z "$freq_overrides" ]] && break
             if [[ "$freq_overrides" =~ ^[0-9]+:[0-9]+(,[0-9]+:[0-9]+)*$ ]]; then
@@ -120,15 +120,15 @@ _cpu_write_conf() {
     local poll_cores="" want_poll=0
     if [[ -n "$current_poll" ]]; then
         log_info "Current per-core poll-mode cores: ${current_poll}"
-        ask_yes_no "Keep poll-mode on those cores?" Y && want_poll=1
+        ask_yes_no "Keep poll-mode on those cores?" Y CPU_POLL_KEEP && want_poll=1
     else
         log_info "Optional advanced: disable ALL idle states (including C1) on selected cores so they busy-loop in C0. Equivalent to idle=poll but per-core — only the listed cores burn power, the others keep C0/C1. Format: '2,3,4,5' or '2-5' or '2,4-6'."
-        ask_yes_no "Poll-mode on specific cores? (advanced, opt-in)" N && want_poll=1
+        ask_yes_no "Poll-mode on specific cores? (advanced, opt-in)" N CPU_POLL && want_poll=1
     fi
 
     if [[ $want_poll -eq 1 ]]; then
         while true; do
-            read -r -p "  Cores list [${current_poll:-empty=skip}]: " poll_cores
+            poll_cores="$(resolve_input CPU_POLL_CORES "  Cores list [${current_poll:-empty=skip}]:")"
             poll_cores="${poll_cores:-$current_poll}"
             [[ -z "$poll_cores" ]] && break
             if [[ "$poll_cores" =~ ^([0-9]+(-[0-9]+)?)(,[0-9]+(-[0-9]+)?)*$ ]]; then

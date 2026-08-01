@@ -43,7 +43,7 @@ readonly _S2D_SERVICE="slim2diretta.service"
 
 log_step "Install slim2Diretta"
 
-if ! ask_yes_no "Install slim2Diretta?" Y; then
+if ! ask_yes_no "Install slim2Diretta?" Y S2D_INSTALL; then
     log_info "Skipping slim2Diretta install."
     return 0 2>/dev/null || exit 0
 fi
@@ -134,7 +134,7 @@ else
         printf "  %d) %s\n" "$((i+1))" "$(_s2d_describe_iface "${_s2d_ifaces[i]}")"
     done
     while true; do
-        read -r -p "Number [1]: " _s2d_pick
+        _s2d_pick="$(resolve_input S2D_DEVICE_PICK "Number [1]:")"
         _s2d_pick="${_s2d_pick:-1}"
         if [[ "$_s2d_pick" =~ ^[1-9][0-9]*$ ]] && (( _s2d_pick >= 1 && _s2d_pick <= ${#_s2d_ifaces[@]} )); then
             _s2d_diretta_iface="${_s2d_ifaces[$((_s2d_pick-1))]}"
@@ -156,7 +156,7 @@ ensure_diretta_nm_connection "$_s2d_diretta_iface"
 # --- 5. Optional LMS server IP -------------------------------------------
 
 echo
-read -r -p "LMS server IP (leave empty for Slimproto auto-discovery): " _s2d_lms_ip
+_s2d_lms_ip="$(resolve_input S2D_LMS_IP "LMS server IP (leave empty for Slimproto auto-discovery):")"
 if [[ -n "${_s2d_lms_ip}" ]]; then
     _s2d_opts="-s ${_s2d_lms_ip}"
     log_info "slim2Diretta will connect to LMS at ${_s2d_lms_ip}."
@@ -192,7 +192,7 @@ _s2d_binary="/usr/local/bin/slim2diretta"
 _s2d_run_install=1
 if [[ -x "$_s2d_binary" ]]; then
     log_info "slim2Diretta binary already installed at ${_s2d_binary}."
-    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N; then
+    if ! ask_yes_no "Re-run ./install.sh (e.g. to rebuild with Clang+LTO or a different option)?" N S2D_RERUN; then
         log_info "Keeping the existing binary — skipping ./install.sh."
         _s2d_run_install=0
     fi
@@ -204,7 +204,7 @@ if [[ "$_s2d_run_install" -eq 1 ]]; then
     # as for cmake (an install.sh pre-check that invokes clang before its
     # own dnf install would otherwise fail).
     _s2d_llvm_prefix=""
-    if ask_yes_no "Build slim2Diretta with Clang + LTO (recommended for sound quality)?" Y; then
+    if ask_yes_no "Build slim2Diretta with Clang + LTO (recommended for sound quality)?" Y S2D_CLANG_LTO; then
         _s2d_llvm_prefix="LLVM=1 "
         if ! has_package clang || ! has_package lld; then
             log_info "Pre-installing clang and lld for the LLVM build."

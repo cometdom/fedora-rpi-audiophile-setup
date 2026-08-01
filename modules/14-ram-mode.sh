@@ -220,7 +220,7 @@ log_info "  D) Disable RAM mode (revert all artefacts from this module)"
 log_info "  N) Skip"
 echo
 
-read -r -p "    Choice [e/d/N]: " _ram_action
+_ram_action="$(resolve_input RAM_MODE_ACTION "    Choice [e/d/N]:")"
 _ram_action="${_ram_action:-N}"
 
 case "${_ram_action^^}" in
@@ -455,7 +455,7 @@ _ram_do_enable() {
     log_info "  O) overlayfs — full root in RAM; all writes in RAM, lost on reboot."
     log_info "                 To make a permanent change: Disable, reboot, edit, Enable."
     echo
-    read -r -p "    Strategy [o/V]: " _strat
+    _strat="$(resolve_input RAM_MODE_STRATEGY "    Strategy [o/V]:")"
     _strat="${_strat:-V}"
 
     case "${_strat^^}" in
@@ -466,7 +466,7 @@ _ram_do_enable() {
 
     log_warn "This modifies the boot process. Physical console access recommended."
     log_warn "A recovery GRUB entry will be created so you can always roll back."
-    if ! ask_yes_no "Enable RAM-mode (${_ram_strategy})?" N; then
+    if ! ask_yes_no "Enable RAM-mode (${_ram_strategy})?" N RAM_MODE_ENABLE; then
         log_info "Cancelled."; return 0
     fi
 

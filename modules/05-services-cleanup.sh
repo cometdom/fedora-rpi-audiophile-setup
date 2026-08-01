@@ -96,7 +96,7 @@ done
 # --- Interactive: firewalld ----------------------------------------------
 
 if _svc_exists firewalld.service && is_service_enabled firewalld.service; then
-    if ask_yes_no "Disable firewalld? (Audiophile host on a trusted LAN doesn't need it; matches the DRUP Fedora guide.)" Y; then
+    if ask_yes_no "Disable firewalld? (Audiophile host on a trusted LAN doesn't need it; matches the DRUP Fedora guide.)" Y FIREWALLD_DISABLE; then
         log_info "Disabling firewalld.service"
         run_cmd systemctl disable --now firewalld.service
     else
@@ -110,7 +110,7 @@ if [[ -f /etc/selinux/config ]] && command -v getenforce >/dev/null 2>&1; then
     _selinux_current=$(getenforce 2>/dev/null || echo "Disabled")
     if [[ "$_selinux_current" == "Disabled" ]]; then
         log_info "SELinux is already Disabled — nothing to do."
-    elif ask_yes_no "Disable SELinux? (Zero overhead on a dedicated audio host; matches the DRUP Fedora guide.)" Y; then
+    elif ask_yes_no "Disable SELinux? (Zero overhead on a dedicated audio host; matches the DRUP Fedora guide.)" Y SELINUX_DISABLE; then
         log_info "Relaxing SELinux to permissive at runtime (setenforce 0)."
         run_cmd setenforce 0
         log_info "Setting SELINUX=disabled in /etc/selinux/config (effective after reboot)."

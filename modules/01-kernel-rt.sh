@@ -135,7 +135,7 @@ fi
 
 _kernel_check_internet
 
-if ! ask_yes_no "Install the PREEMPT_RT kernel from ${_KR_COPR} (recommended)?" Y; then
+if ! ask_yes_no "Install the PREEMPT_RT kernel from ${_KR_COPR} (recommended)?" Y KERNEL_RT; then
     log_warn "User declined the RT kernel. The audiophile setup will be incomplete; subsequent modules may misbehave."
     return 0 2>/dev/null || exit 0
 fi

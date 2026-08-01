@@ -80,7 +80,7 @@ _tmpfs_add_fstab_entry() {
 
 _tmpfs_set_journald_volatile
 
-if ask_yes_no "Mount /var/log and /var/tmp as tmpfs (eliminates disk writes during playback — takes effect on next reboot)?" Y; then
+if ask_yes_no "Mount /var/log and /var/tmp as tmpfs (eliminates disk writes during playback — takes effect on next reboot)?" Y TMPFS_VARLOG; then
     # /var/log: 0755 root:root is fine — services running as root write here.
     _tmpfs_add_fstab_entry /var/log "$_TMPFS_VAR_LOG_SIZE"
     # /var/tmp MUST keep mode 1777 (sticky world-writable) so non-root users

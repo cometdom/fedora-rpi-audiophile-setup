@@ -215,7 +215,7 @@ log_info ""
 
 if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
     log_info "DRY-RUN: not offering to reboot."
-elif ask_yes_no "Reboot now?" N; then
+elif ask_yes_no "Reboot now?" N REBOOT; then
     log_info "Rebooting…"
     run_cmd systemctl reboot
 else

@@ -26,7 +26,7 @@ readonly _S2U_BINARY="/usr/local/bin/slim2upnp"
 
 log_step "Install slim2UPnP (Slimproto → UPnP bridge)"
 
-if ! ask_yes_no "Install slim2UPnP (an LMS player that streams to a UPnP renderer like DRUP)?" N; then
+if ! ask_yes_no "Install slim2UPnP (an LMS player that streams to a UPnP renderer like DRUP)?" N S2U_INSTALL; then
     log_info "Skipping slim2UPnP install."
     return 0 2>/dev/null || exit 0
 fi
@@ -65,7 +65,7 @@ fi
 
 _s2u_llvm_env=""
 _s2u_install_arg=""
-if ask_yes_no "Build slim2UPnP from source with Clang + LTO? (default: download a prebuilt static binary — faster)" N; then
+if ask_yes_no "Build slim2UPnP from source with Clang + LTO? (default: download a prebuilt static binary — faster)" N S2U_SOURCE_BUILD; then
     _s2u_install_arg="--build"
     # Passed via `env` below. A "LLVM=1" coming from a variable expansion is
     # NOT recognised as a shell assignment (assignment recognition happens
@@ -82,7 +82,7 @@ fi
 _s2u_run_install=1
 if [[ -x "$_S2U_BINARY" ]]; then
     log_info "slim2UPnP binary already installed at ${_S2U_BINARY}."
-    if ! ask_yes_no "Re-run ./install.sh (e.g. to update or switch to a source build)?" N; then
+    if ! ask_yes_no "Re-run ./install.sh (e.g. to update or switch to a source build)?" N S2U_RERUN; then
         _s2u_run_install=0
     fi
 fi

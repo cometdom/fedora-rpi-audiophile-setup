@@ -110,7 +110,7 @@ _net_pick_iface() {
         printf "  %d) %s\n" "$((i+1))" "${opts[$i]}"
     done
     while true; do
-        read -r -p "Choose [1-${#opts[@]}]: " choice
+        choice="$(resolve_input NET_IFACE_PICK "Choose [1-${#opts[@]}]:")"
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#opts[@]} )); then
             echo "${opts[$((choice-1))]}"
             return 0
@@ -156,7 +156,7 @@ _net_stable_naming_step() {
     log_info "  (eth-lan, eth-diretta) that survive NIC swaps, GPU insert/remove,"
     log_info "  added PCIe cards. Applied by udev at next boot."
     log_info "  Works under both NetworkManager and systemd-networkd."
-    if ! ask_yes_no "Set up stable names by MAC?" Y; then
+    if ! ask_yes_no "Set up stable names by MAC?" Y NET_STABLE_NAMES; then
         log_info "Skipping stable naming — interface names will remain PCI-volatile."
         return 0
     fi
@@ -169,7 +169,7 @@ _net_stable_naming_step() {
     fi
     if [[ ${#ifaces[@]} -eq 1 ]]; then
         log_info "Only one NIC detected: ${ifaces[0]} will be renamed eth-lan."
-        if ask_yes_no "Confirm?" Y; then
+        if ask_yes_no "Confirm?" Y NET_CONFIRM; then
             _net_write_stable_link "${ifaces[0]}" "lan" "eth-lan" && _NET_STABLE_MAP["${ifaces[0]}"]="eth-lan"
             _net_stable_naming_finalize
         fi
@@ -198,7 +198,7 @@ _net_stable_naming_step() {
     printf "  LAN     : %-12s → will be renamed eth-lan\n"     "${lan_iface:-<not detected>}"
     printf "  Diretta : %-12s → will be renamed eth-diretta\n" "${diretta_iface:-<not detected>}"
 
-    if ! ask_yes_no "Use these roles?" Y; then
+    if ! ask_yes_no "Use these roles?" Y NET_ROLES; then
         lan_iface=$(_net_pick_iface "Which NIC is LAN (connected to router/internet)?" "${ifaces[@]}")
         local -a rest=()
         for i in "${ifaces[@]}"; do
@@ -371,7 +371,7 @@ _net_switch_to_networkd() {
 
     log_warn "Switching from NetworkManager to systemd-networkd."
     log_warn "If your generated config is wrong you may LOSE NETWORK ACCESS — make sure you have console (not just SSH) access before continuing."
-    if ! ask_yes_no "Continue?" N; then
+    if ! ask_yes_no "Continue?" N NET_CONTINUE; then
         log_info "Aborted by user — leaving the network stack untouched."
         return 0
     fi
@@ -410,7 +410,7 @@ echo "  K) Keep NetworkManager (tuned)   [default — safe, supports nmtui]"
 echo "  S) Switch to systemd-networkd    [deterministic, opt-in]"
 echo "  N) Skip — do not touch the network stack"
 echo
-read -r -p "Choose [K/s/n] " _choice
+_choice="$(resolve_input NET_STACK "Choose [K/s/n]")"
 _choice="${_choice:-K}"
 
 case "${_choice^^}" in
