@@ -11,17 +11,34 @@
 #   N) Skip
 #
 # Strategy V — systemd.volatile=state:
-#   /var is copied into a tmpfs during initrd. /etc and / stay on disk and
-#   are idle after boot. Writes to /var are lost on reboot.
-#   /etc edits are always persistent (disk).
+#   /var is copied into a tmpfs during initrd. Per systemd's own semantics
+#   for "state" mode, the root filesystem itself (including /etc) is
+#   mounted READ-ONLY from disk — it is NOT freely writable. Writes to
+#   /var are lost on reboot. Writes to /etc (or elsewhere under /) will
+#   fail with "Read-only file system" unless the caller explicitly does
+#   `mount -o remount,rw /` first — in which case the write does land on
+#   real disk and does persist, but the filesystem reverts to read-only
+#   again on the next boot. This is the lightest strategy: no custom
+#   dracut module, no overlay, minimal RAM overhead.
 #
 # Strategy O — overlayfs:
 #   The real root is mounted read-only as the lower layer; a tmpfs upper
 #   layer catches all writes. The disk is truly idle after boot.
-#   ALL writes (including /etc) are in RAM and lost on reboot.
+#   ALL writes (including /etc) are in RAM and always appear to succeed —
+#   there is no read-only error to warn you — but they are lost on reboot.
 #   There is no in-session way to make a change permanent.
 #   To make a permanent change: Disable, reboot, edit on the disk-backed
 #   root normally, then Enable again.
+#   This strategy needs a custom dracut module and initramfs rebuild on
+#   every enable/disable, which is inherently more fragile than Strategy V.
+#
+# Choosing between them:
+#   Recommended default: V. Root is genuinely read-only, so an accidental
+#   write fails loudly instead of silently vanishing on reboot, RAM
+#   overhead is minimal, and enable/disable is a single cmdline edit.
+#   Use O only if you specifically need the disk to be 100% idle even
+#   across an accidental `remount,rw` — accept the extra RAM cost and the
+#   more fragile disable path (dracut rebuild) as the trade-off.
 #
 # Revert:
 #   Removes all artefacts: cmdline params, dracut conf, dracut module dir,
@@ -54,6 +71,13 @@ if [[ -z "${_RAM_GEN_TAG+_}" ]]; then
     # Disable, reboot, edit on the disk-backed root, Enable again.
     readonly _RAM_PERSIST_SVC_NAME="audiophile-overlay-persist.service"
     readonly _RAM_PERSIST_SVC_PATH="/etc/systemd/system/${_RAM_PERSIST_SVC_NAME}"
+fi
+
+if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    log_error "This module must run as root. grubby and grub2-editenv read/write"
+    log_error "files under /boot that are not readable by a normal user, and will"
+    log_error "silently produce wrong or empty results otherwise. Re-run with sudo."
+    exit 1
 fi
 
 log_step "RAM-mode (analysis / enable / disable)"
@@ -105,16 +129,124 @@ log_info "---- End of analysis ----"
 # Helpers
 # =========================================================================
 
-_ram_grubby_args() {
-    grubby --info DEFAULT 2>/dev/null \
-        | grep '^args=' | head -1 \
-        | sed 's/^args="//; s/"$//'
+# Resolve the BLS entry id that will actually be booted next, by reading
+# GRUB's own saved_entry from grubenv directly. This is the one source of
+# truth for "which entry boots next" — unlike `grubby --info DEFAULT` /
+# `--update-kernel=DEFAULT`, which resolve ambiguously as soon as more than
+# one entry shares the same kernel path (exactly what the recovery entry
+# created by this module produces).
+_ram_saved_entry_id() {
+    local grubenv="/boot/grub2/grubenv"
+    if [[ ! -r "$grubenv" ]]; then
+        return 1
+    fi
+    awk -F= '/^saved_entry=/{print $2; found=1} END{exit !found}' "$grubenv"
 }
+
+# Returns the BLS entry file path for the entry that will actually be
+# booted next, or fails (no output) if it cannot be resolved.
+#
+# NOTE: grubby's --info / --update-kernel do NOT accept a BLS entry file
+# path as their argument — only a kernel-path, an index, DEFAULT, ALL, or
+# TITLE=<title>. Passing the .conf path there (an earlier version of this
+# fix did exactly that) makes grubby fail outright, which combined with
+# `set -euo pipefail` aborts the whole script silently. So instead of
+# feeding this path to grubby, the functions below read and edit the BLS
+# file directly — the same technique _ram_remove_recovery_entries already
+# uses safely for deletion. This is an officially supported way to manage
+# BLS entries: GRUB reads /boot/loader/entries/*.conf directly at boot,
+# no regeneration step is needed after editing the "options" line.
+_ram_entry_file() {
+    local id
+    id=$(_ram_saved_entry_id) || return 1
+    [[ -n "$id" ]] || return 1
+    local f="/boot/loader/entries/${id}.conf"
+    [[ -f "$f" ]] || return 1
+    echo "$f"
+}
+
+# Reads the current "options" line (BLS's equivalent of grubby's "args=")
+# from the resolved target entry. Falls back to `grubby --info DEFAULT`
+# only if grubenv/the entry file cannot be resolved, with an explicit
+# warning that this fallback is ambiguous with duplicate kernel paths.
+_ram_current_args() {
+    local file
+    if file=$(_ram_entry_file); then
+        awk '/^options / { sub(/^options /, ""); print; exit }' "$file"
+    else
+        log_warn "Could not resolve the target BLS entry via saved_entry —" \
+                 "falling back to 'grubby --info DEFAULT', which is ambiguous" \
+                 "if multiple entries share the same kernel path."
+        grubby --info DEFAULT 2>/dev/null \
+            | grep '^args=' | head -1 \
+            | sed 's/^args="//; s/"$//'
+    fi
+}
+
+_ram_grubby_args() { _ram_current_args; }
 
 _ram_grubby_initrd() {
     grubby --info DEFAULT 2>/dev/null \
         | grep '^initrd=' | head -1 \
         | sed 's/^initrd=//'
+}
+
+# Adds or removes a single cmdline param on the resolved target BLS entry
+# by rewriting its "options" line directly. action is "add" or "remove".
+_ram_edit_entry_arg() {
+    local action="$1" param="$2" file current newline
+    file=$(_ram_entry_file) || {
+        log_error "Cannot resolve the target boot entry (grubenv unreadable" \
+                   "or saved_entry missing) — refusing to guess which file to edit."
+        return 1
+    }
+    current=$(awk '/^options / { sub(/^options /, ""); print; exit }' "$file")
+
+    if [[ "$action" == "add" ]]; then
+        if [[ "$current" == *"$param"* ]]; then
+            return 0
+        fi
+        newline="${current} ${param}"
+    else
+        if [[ "$current" != *"$param"* ]]; then
+            return 0
+        fi
+        newline="${current//$param/}"
+    fi
+    newline=$(echo "$newline" | tr -s ' ' | sed 's/^ *//; s/ *$//')
+
+    if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+        log_info "DRY-RUN: would set options in ${file} to: ${newline}"
+        return 0
+    fi
+
+    run_cmd sed -i "s|^options .*|options ${newline}|" "$file"
+}
+
+# Re-reads the args of the actual target entry and confirms the given
+# param is present (expect_present=1) or absent (expect_present=0). Logs
+# an explicit error and returns failure if the update did not land where
+# expected — instead of the previous silent "looked like it worked".
+_ram_verify_cmdline() {
+    local param="$1" expect_present="$2" args
+    args=$(_ram_current_args)
+    if [[ "$expect_present" -eq 1 ]]; then
+        if [[ "$args" == *"$param"* ]]; then
+            return 0
+        fi
+        log_error "Verification failed: '${param}' is NOT present in the entry" \
+                   "that will actually boot next. Check for duplicate kernel paths" \
+                   "with: grubby --info=ALL | grep -E 'kernel=|args='"
+        return 1
+    else
+        if [[ "$args" != *"$param"* ]]; then
+            return 0
+        fi
+        log_error "Verification failed: '${param}' is STILL present in the entry" \
+                   "that will actually boot next. Check for duplicate kernel paths" \
+                   "with: grubby --info=ALL | grep -E 'kernel=|args='"
+        return 1
+    fi
 }
 
 _ram_current_mode() {
@@ -254,12 +386,17 @@ _ram_enable_volatile() {
         log_info "Recovery entry was created on first enable; not duplicating it."
     else
         _ram_add_recovery_entry "$_RAM_VOLATILE_PARAM" "Fedora RT (recovery — no RAM mode)"
-        run_cmd grubby --update-kernel=DEFAULT --args="$_RAM_VOLATILE_PARAM"
+        _ram_edit_entry_arg add "$_RAM_VOLATILE_PARAM"
+        _ram_verify_cmdline "$_RAM_VOLATILE_PARAM" 1 \
+            || { log_error "volatile RAM mode enable did not take effect — aborting."; exit 1; }
     fi
 
     log_info "volatile RAM mode enabled."
     log_info "After reboot verify: findmnt -n -o FSTYPE /var   # should print 'tmpfs'"
     log_info "/var changes are not persisted automatically — they're lost on reboot."
+    log_warn "Root (including /etc) is mounted READ-ONLY in this mode. Writes to"
+    log_warn "/etc will fail with 'Read-only file system' unless you explicitly"
+    log_warn "run: mount -o remount,rw /   (and it reverts to read-only next boot)."
     log_info "To make a permanent /var-related change: Disable, reboot, edit on disk, Enable again."
 }
 
@@ -417,7 +554,9 @@ EOF
         log_info "Recovery entry was created on first enable; not duplicating it."
     else
         _ram_add_recovery_entry "audiophile\\.overlay=1" "Fedora RT (recovery — no overlay)"
-        run_cmd grubby --update-kernel=DEFAULT --args="audiophile.overlay=1"
+        _ram_edit_entry_arg add "$_RAM_OVERLAY_PARAM"
+        _ram_verify_cmdline "$_RAM_OVERLAY_PARAM" 1 \
+            || { log_error "overlay RAM mode enable did not take effect — aborting."; exit 1; }
     fi
 
     log_info "overlayfs RAM mode enabled."
@@ -451,9 +590,14 @@ _ram_do_enable() {
 
     echo
     log_info "Two strategies:"
-    log_info "  V) volatile  — /var in RAM; /etc persistent on disk. Lightest."
-    log_info "  O) overlayfs — full root in RAM; all writes in RAM, lost on reboot."
+    log_info "  V) volatile  — /var in RAM; root (incl. /etc) mounted READ-ONLY."
+    log_info "                 Writes to /etc fail loudly instead of vanishing."
+    log_info "                 Lightest: minimal RAM, no dracut rebuild. RECOMMENDED."
+    log_info "  O) overlayfs — full root in RAM; all writes in RAM, lost on reboot,"
+    log_info "                 and always appear to succeed (no read-only warning)."
     log_info "                 To make a permanent change: Disable, reboot, edit, Enable."
+    log_info "                 Only choose this if you specifically need the disk"
+    log_info "                 100% idle even against an accidental remount,rw."
     echo
     _strat="$(resolve_input RAM_MODE_STRATEGY "    Strategy [o/V]:")"
     _strat="${_strat:-V}"
@@ -487,13 +631,35 @@ _ram_do_disable() {
     current_args=$(_ram_grubby_args)
 
     # 1. Remove cmdline params
+    #
+    # IMPORTANT: grubby's --update-kernel=DEFAULT is deliberately NOT used
+    # here. Its "DEFAULT" resolution is ambiguous whenever more than one BLS
+    # entry shares the same kernel path — which the recovery entry this
+    # module creates guarantees. Hitting the wrong entry means the boot
+    # actually taken next still carries the RAM-mode param, so RAM mode
+    # silently stays active across the "disable" — which is exactly the bug
+    # reported: changes made after a believed-successful disable kept
+    # disappearing because the system was still booting into RAM mode.
+    # _ram_edit_entry_arg() resolves saved_entry and edits that exact BLS
+    # file's "options" line directly (grubby's --info/--update-kernel do
+    # not accept a BLS file path as an argument, only a kernel-path,
+    # DEFAULT, ALL, or TITLE=..., so this cannot go through grubby for a
+    # single specific entry). _ram_verify_cmdline() then re-reads that same
+    # file to confirm the removal actually landed.
     for param in "$_RAM_VOLATILE_PARAM" "audiophile.overlay"; do
         if [[ "$current_args" == *"$param"* ]]; then
             if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
                 log_info "DRY-RUN: would remove '${param}' from cmdline."
             else
-                run_cmd grubby --update-kernel=DEFAULT --remove-args="$param"
-                log_info "Removed '${param}' from kernel cmdline."
+                _ram_edit_entry_arg remove "$param"
+                if _ram_verify_cmdline "$param" 0; then
+                    log_info "Removed '${param}' from kernel cmdline (verified)."
+                else
+                    log_error "Failed to remove '${param}' — RAM mode may still be" \
+                               "active on next boot. Do not make changes until this" \
+                               "is resolved; inspect: grubby --info=ALL | grep -E 'kernel=|args='"
+                    exit 1
+                fi
             fi
             changed=1
         fi
@@ -564,7 +730,21 @@ _ram_do_disable() {
     if [[ "$changed" -eq 0 ]]; then
         log_info "Nothing to revert — no RAM-mode artefacts found."
     else
-        log_info "RAM mode disabled. Reboot to return to normal disk boot."
+        log_info "RAM mode disabled for the next boot (verified above)."
+        log_warn "You are still running THIS session on the current RAM layer."
+        log_warn "Any change you make now (installing packages, editing files)"
+        log_warn "still writes to RAM, not disk, and will be lost — even though"
+        log_warn "the disable itself is confirmed. Reboot FIRST, then make changes."
+        echo
+        if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+            log_info "DRY-RUN: would prompt to reboot now."
+        elif ask_yes_no "Reboot now to return to the disk-backed root?" Y RAM_DISABLE_REBOOT; then
+            log_info "Rebooting..."
+            run_cmd systemctl reboot
+        else
+            log_warn "Not rebooting now — remember to reboot BEFORE making any"
+            log_warn "changes, or they will be lost exactly like before."
+        fi
     fi
 }
 
