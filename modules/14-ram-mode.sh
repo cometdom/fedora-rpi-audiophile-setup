@@ -249,6 +249,50 @@ _ram_verify_cmdline() {
     fi
 }
 
+# dracut writes the rebuilt initramfs to a .tmp file *next to* the existing
+# one for that kernel version, then renames over it — so /boot needs enough
+# free space for old + new to coexist momentarily, not just the new image.
+# On a small /boot (common default: ~1 GiB) with several kernels retained
+# (kernel-rt install keeps the previous kernel; see design-notes.md), this
+# is easy to exceed even when df reports what looks like plenty of headroom.
+# Checking before dracut runs turns a cryptic zstd "No space left on
+# device" failure into an actionable message.
+_ram_check_boot_space() {
+    local kver initramfs existing_mb free_mb required_mb
+    kver=$(uname -r)
+    initramfs="/boot/initramfs-${kver}.img"
+    if [[ -f "$initramfs" ]]; then
+        existing_mb=$(( $(stat -c%s "$initramfs") / 1024 / 1024 ))
+    else
+        existing_mb=0
+    fi
+    free_mb=$(df --output=avail -BM /boot | tail -1 | tr -d 'M[:space:]')
+    required_mb=$(( existing_mb * 2 + 100 ))
+    (( required_mb < 300 )) && required_mb=300
+
+    if (( free_mb < required_mb )); then
+        log_error "Not enough free space on /boot to rebuild the initramfs safely."
+        log_error "  /boot free space   : ${free_mb} MiB"
+        log_error "  current initramfs  : ${existing_mb} MiB (${initramfs})"
+        log_error "  estimated required : ${required_mb} MiB (dracut briefly needs" \
+                   "the old and the new image on disk at the same time, plus margin)"
+        log_error "dracut writes the rebuilt initramfs to a .tmp file next to the" \
+                   "existing one before replacing it — free space must cover both" \
+                   "at once. This is the most common cause of a 'No space left on" \
+                   "device' failure from dracut/zstd here."
+        log_error "Free up space first, e.g.:"
+        log_error "  rpm -qa 'kernel*'             # list installed kernels"
+        log_error "  sudo dnf remove <old-kernel>   # remove one you no longer need for rollback"
+        log_error "  sudo dnf autoremove"
+        log_error "Then re-run this module."
+        return 1
+    fi
+
+    log_info "Boot space check: ${free_mb} MiB free on /boot, ~${required_mb} MiB" \
+              "estimated required for the rebuild — OK."
+    return 0
+}
+
 _ram_current_mode() {
     local args
     args=$(_ram_grubby_args)
@@ -439,6 +483,8 @@ _ram_enable_overlay() {
         log_info "DRY-RUN: would write dracut module, run dracut -f, add recovery entry, update cmdline."
         return 0
     fi
+
+    _ram_check_boot_space || exit 1
 
     # --- dracut module ---
     mkdir -p "$_RAM_DRACUT_MODULE_DIR"
@@ -688,6 +734,7 @@ _ram_do_disable() {
         dracut_changed=1; changed=1
     fi
     if [[ "$dracut_changed" -eq 1 && "${DRY_RUN:-0}" -ne 1 ]]; then
+        _ram_check_boot_space || exit 1
         dracut -f || { log_error "dracut -f failed (exit $?) — initramfs not rebuilt."; exit 1; }
         log_info "Initramfs rebuilt (overlay module removed)."
     fi
