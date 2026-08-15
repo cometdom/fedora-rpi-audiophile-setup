@@ -5,7 +5,7 @@ Turn a clean **Fedora 44 Server (ARM64)** install on a **Raspberry Pi 5** into a
 > 🆕 **First time installing Linux on a Raspberry Pi?** Read the step-by-step newbie walkthrough first — it takes you from a bare Pi 5 to first listening test, no prior knowledge assumed.
 > Available in: **English** ([web](docs/en/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-en.pdf)) · **Français** ([web](docs/fr/newbie-walkthrough.md) · [PDF](https://github.com/cometdom/fedora-rpi-audiophile-setup/releases/latest/download/newbie-walkthrough-fr.pdf))
 
-> **Status: v2.3.2** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
+> **Status: v2.3.3** — Production-ready on Fedora 44 ARM64 (Raspberry Pi 5). Full functional parity with the [x86_64 sibling](https://github.com/cometdom/fedora-audiophile-setup). All modules implemented and validated on real hardware.
 
 ## What it does
 
@@ -131,6 +131,7 @@ UA_S2D_INSTALL=N
 - [x] **v2.3.0** — **Unattended mode** (`--unattended`, `--answers`): the entire wizard runs without a TTY, every prompt driven by `UA_<KEY>` environment variables. Enables scripted appliance builds, kickstart `%post`, and CI provisioning. `extras/answers-example.env` lists all keys with their defaults. Ported from the x86 sibling (Bertrand Clech / renesenses), with Pi-specific keys (`PI_TWEAKS`, `PI_TWEAKS_WIFI_BT`, `PI_TWEAKS_HDMI`).
 - [x] **v2.3.1** — RAM-mode disable bug fix: id-based BLS targeting fixes `Disable` sometimes leaving `audiophile.overlay=1` in the boot cmdline (ambiguous `grubby --update-kernel=DEFAULT` resolution when the recovery entry shares a kernel path). The module now reads `saved_entry` from grubenv, edits the BLS entry directly, and verifies every add/remove. A reboot prompt is offered immediately after disable. Reported and fixed by Auke.
 - [x] **v2.3.2** — RAM-mode preflight `/boot` space check: `dracut -f` briefly needs room for the old *and* new initramfs at once (it writes a `.tmp` file next to the existing image before replacing it) — a small `/boot` with several kernels retained can run out mid-rebuild with a cryptic zstd "No space left on device" error. The module now checks free space before calling dracut and fails with an actionable message instead. Ported from the x86 sibling after a user report (hd3291).
+- [x] **v2.3.3** — Module 04's optional `/var/tmp` tmpfs (256M) starved dracut's own initramfs build directory on every subsequent kernel update — the same cryptic "No space left on device" as v2.3.2, but from a different cause: plenty of room on `/boot`, none in dracut's scratch space. Now redirects dracut's `tmpdir` to `/tmp` (not resized by this repo) alongside the `/var/tmp` tmpfs entry. Ported from the x86 sibling after a live diagnosis on Dominique's TuneOS box.
 
 ### Planned
 
