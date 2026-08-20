@@ -292,7 +292,8 @@ For each prompt, the **default** (in brackets, like `[Y/n]` or `[y/N]`) is what 
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Enter) — downloads a ready-made binary (fast). Answer **Y** only if you specifically want a source build. |
 | 13 pi-tweaks | `Apply optional Pi hardware tweaks?` | **N** (Enter) unless you want to switch off the Pi's onboard Wi-Fi/Bluetooth radios or its HDMI output. Each tweak then asks separately (all default N). |
 | 13 pi-tweaks | `Disable HDMI video output?` | **N** unless the host is fully headless — there's no console display afterwards (SSH only). Reversible later via grubby. |
-| 14 ram-mode | `Choice [e/d/N]:` | **N** (Enter) for a first install — RAM mode is an optional post-setup optimization. Choose **E** later to enable it: **V** (volatile) puts `/var` in RAM only (lightest); **O** (overlayfs) loads the entire root into RAM (writes exist only in RAM and are lost on reboot — to make a permanent change: Disable, reboot, edit on SD, Enable again). The module reports headroom before asking; you need at least ~256 MiB free. |
+| 14 ram-mode | `Choice [e/d/p/N]:` | **N** (Enter) for a first install — RAM mode is an optional post-setup optimization. Choose **E** later to enable it: **V** (volatile) puts `/var` in RAM only (lightest); **O** (overlayfs) loads the entire root into RAM (writes exist only in RAM and are lost on reboot — to make a permanent change: Disable, reboot, edit on SD, Enable again). The module reports headroom before asking; you need at least ~256 MiB free. |
+| 14 ram-mode | `Choice [e/d/p/N]:` → **P** (Persistent paths) | Optional, independent of E/D — skip on a first install. Bind-mounts an installed app's mutable data (Lyrion Music Server, Tune Server) from `/home` onto the path it expects, so that data survives RAM-mode reboots even though `/var` (or all of `/` under overlay) normally isn't. The wizard auto-detects installed apps and offers each with its own Y/N prompt; also supports a custom path pair for anything else. Come back to this once you've installed LMS or Tune and enabled RAM mode. |
 | 99 finalize | `Reboot now?` | **N** (Enter) for the first run — let's verify what's installed before rebooting. |
 
 The longest step by far is **10 install-drup**: it compiles FFmpeg from source. Plan on ~30 minutes during which the screen scrolls a lot of green checkmarks. That's normal.
@@ -340,6 +341,9 @@ Find your Diretta NIC (the one you picked at step 10) and confirm its MTU is `90
 ```bash
 # If you enabled RAM mode (module 14):
 findmnt -n -o FSTYPE /    # overlay (overlayfs mode) or xfs (volatile mode or disabled)
+
+# If you set up a Persistent path (module 14, choice P):
+findmnt /var/lib/lyrionmusicserver   # or whichever target you configured — should show your /home source, not tmpfs
 ```
 
 If anything is wrong, see [§17 Troubleshooting](#17-troubleshooting-common-issues) below.

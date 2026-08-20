@@ -294,7 +294,8 @@ Pour chaque question, la **valeur par défaut** (entre crochets, du type `[Y/n]`
 | 12 install-slim2upnp | `Build from source with Clang + LTO?` | **N** (Entrée) — télécharge un binaire prêt à l'emploi (rapide). Répondez **Y** seulement si vous voulez un build depuis les sources. |
 | 13 pi-tweaks | `Apply optional Pi hardware tweaks?` | **N** (Entrée) sauf si vous voulez couper le Wi-Fi/Bluetooth intégré du Pi ou sa sortie HDMI. Chaque tweak est ensuite demandé séparément (tous défaut N). |
 | 13 pi-tweaks | `Disable HDMI video output?` | **N** sauf hôte totalement headless — plus d'affichage console ensuite (SSH uniquement). Réversible via grubby. |
-| 14 ram-mode | `Choice [e/d/N]:` | **N** (Entrée) pour une première installation — le mode RAM est une optimisation optionnelle à activer plus tard. Choisissez **E** pour l'activer : **V** (volatile) met uniquement `/var` en RAM (option la plus légère) ; **O** (overlayfs) charge toute la racine en RAM (les écritures n'existent qu'en RAM et sont perdues au redémarrage — pour rendre un changement permanent : Désactiver, redémarrer, modifier sur la carte SD, Réactiver). Le module affiche la marge mémoire disponible avant de demander ; il faut environ 256 Mio libres minimum. |
+| 14 ram-mode | `Choice [e/d/p/N]:` | **N** (Entrée) pour une première installation — le mode RAM est une optimisation optionnelle à activer plus tard. Choisissez **E** pour l'activer : **V** (volatile) met uniquement `/var` en RAM (option la plus légère) ; **O** (overlayfs) charge toute la racine en RAM (les écritures n'existent qu'en RAM et sont perdues au redémarrage — pour rendre un changement permanent : Désactiver, redémarrer, modifier sur la carte SD, Réactiver). Le module affiche la marge mémoire disponible avant de demander ; il faut environ 256 Mio libres minimum. |
+| 14 ram-mode | `Choice [e/d/p/N]:` → **P** (Persistent paths) | Optionnel, indépendant de E/D — à ignorer pour une première installation. Fait un bind-mount des données mutables d'une appli installée (Lyrion Music Server, Tune Server) depuis `/home` vers le chemin qu'elle attend, pour qu'elles survivent aux redémarrages en mode RAM alors que `/var` (ou toute la racine `/` en overlay) ne le fait normalement pas. Le wizard détecte automatiquement les applis installées et propose chacune avec sa propre question Oui/Non ; permet aussi une paire de chemins personnalisée pour toute autre appli. À revisiter une fois LMS ou Tune installé et le mode RAM activé. |
 | 99 finalize | `Reboot now?` | **N** (Entrée) au premier passage — vérifions ce qui est installé avant de redémarrer. |
 
 L'étape de loin la plus longue est **10 install-drup** : elle compile FFmpeg depuis les sources. Comptez ~30 minutes pendant lesquelles l'écran défile avec beaucoup de coches vertes. C'est normal.
@@ -342,6 +343,9 @@ Repérez votre carte Diretta (celle choisie à l'étape 10) et confirmez que son
 ```bash
 # Si vous avez activé le mode RAM (module 14) :
 findmnt -n -o FSTYPE /    # overlay (mode overlayfs) ou xfs (mode volatile ou désactivé)
+
+# Si vous avez configuré un chemin persistant (module 14, choix P) :
+findmnt /var/lib/lyrionmusicserver   # ou la cible que vous avez configurée — doit pointer vers votre source /home, pas vers tmpfs
 ```
 
 En cas de problème, voir le [§17 Dépannage](#17-dépannage) ci-dessous.
