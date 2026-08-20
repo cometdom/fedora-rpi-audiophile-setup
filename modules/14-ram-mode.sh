@@ -1038,12 +1038,21 @@ _ram_do_persist() {
 
     echo
     if [[ "$_any" -eq 1 ]] && ask_yes_no "Remove one of the currently configured pairs?" N RAM_PERSIST_REMOVE; then
-        while IFS=$'\t' read -r src tgt; do
+        # mapfile first, THEN loop over the array — NOT `while read < <(...)`.
+        # That form redirects stdin for the whole loop body, so the
+        # ask_yes_no below would read from the process-substitution pipe
+        # instead of the terminal (immediate EOF → silent "No", no prompt
+        # ever shown — the exact bug reported 2026-08-20 on real hardware).
+        local -a _pairs
+        mapfile -t _pairs < <(_ram_persist_read_pairs)
+        local _pair src tgt
+        for _pair in "${_pairs[@]}"; do
+            IFS=$'\t' read -r src tgt <<< "$_pair"
             [[ -z "$tgt" ]] && continue
             if ask_yes_no "  → Remove ${src} → ${tgt}?" N "RAM_PERSIST_REMOVE_$(echo "$tgt" | tr -c 'A-Za-z0-9' _ | tr 'a-z' 'A-Z')"; then
                 _ram_persist_remove_pair "$src" "$tgt"
             fi
-        done < <(_ram_persist_read_pairs)
+        done
     fi
 }
 
