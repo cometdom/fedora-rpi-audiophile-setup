@@ -84,12 +84,17 @@ if [[ -z "${_RAM_GEN_TAG+_}" ]]; then
     # name|comma-separated candidate systemd units|default source (under
     # /home BY CONVENTION — only actually usable when /home is itself a
     # separate mount on the host; _ram_persist_add_pair verifies this at
-    # apply time and refuses otherwise, it is not assumed here)|default
-    # target (what the app actually expects)|UA_<KEY> for the enable prompt.
-    # The key is a static literal (not derived from the unit name) so it can
-    # be documented in extras/answers-example.env per the UA_<KEY> stability
-    # contract — add an entry here only for an app whose RAM-mode persistence
-    # has been verified end-to-end, never a guessed path.
+    # apply time and refuses otherwise, it is not assumed here. Overridable
+    # per-preset without an interactive prompt via UA_<key>_SOURCE, e.g.
+    # UA_RAM_PERSIST_TUNE_SOURCE=/persist/tune-data — for a host with no
+    # /home at all, such as Tune OS: no user accounts, single grown root
+    # partition, /home isn't even a concept there. Added 2026-08-20 after
+    # Bertrand Clech/renesenses confirmed this with Tune OS's own team)|
+    # default target (what the app actually expects)|UA_<KEY> for the enable
+    # prompt. The key is a static literal (not derived from the unit name) so
+    # it can be documented in extras/answers-example.env per the UA_<KEY>
+    # stability contract — add an entry here only for an app whose RAM-mode
+    # persistence has been verified end-to-end, never a guessed path.
     #
     # Multiple candidate unit names per app (not just one): "Tune Server"
     # below was shipped detecting only tune-server.service — a name inferred
@@ -1102,7 +1107,19 @@ _ram_do_persist() {
         [[ "$_found" -eq 1 ]] || continue
         _ram_persist_already_configured "$tgt" && continue
         _offered=1
-        if ask_yes_no "  → Persist ${name} (${tgt})?" N "$key"; then
+        # Per-preset source override — UA_<key>_SOURCE, e.g.
+        # UA_RAM_PERSIST_TUNE_SOURCE=/persist/tune-data. Not every host has
+        # /home as a separate mount (Tune OS: no user accounts at all, single
+        # grown root partition, /home isn't even a concept there — reported
+        # by Bertrand Clech/renesenses 2026-08-20). A silent env-var lookup,
+        # not an interactive prompt: the common case (default source is
+        # fine) shouldn't gain an extra question just because the override
+        # exists. _ram_persist_add_pair's own mount-boundary check is still
+        # the actual enforcement — this only changes WHERE it checks.
+        local _src_override
+        _src_override="$(unattended_answer "${key}_SOURCE")"
+        [[ -n "$_src_override" ]] && src="$_src_override"
+        if ask_yes_no "  → Persist ${name} (${src} → ${tgt})?" N "$key"; then
             _ram_persist_add_pair "$src" "$tgt"
         fi
     done
